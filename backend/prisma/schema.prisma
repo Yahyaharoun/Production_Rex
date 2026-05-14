@@ -1,0 +1,276 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================================================================
+// ENUMS
+// ==============================================================================
+
+enum Role {
+  ADMIN
+  CHEF
+  CAISSIERE
+}
+
+enum StatutCompte {
+  EN_ATTENTE
+  ACTIF
+  INACTIF
+  BLOQUE
+}
+
+enum StatutTrajet {
+  PROGRAMME
+  EN_COURS
+  TERMINE
+  ANNULE
+}
+
+enum StatutProduction {
+  BROUILLON
+  SOUMIS
+  VALIDE
+  REJETE
+}
+
+// ==============================================================================
+// MODELS
+// ==============================================================================
+
+model Agence {
+  id        String   @id @default(uuid())
+  nom       String
+  ville     String
+  adresse   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users                   User[]
+  vehicules               Vehicule[]
+  productionsJournalieres ProductionJournaliere[]
+  trajetsDepart           Trajet[]                @relation("AgenceDepart")
+  trajetsArrivee          Trajet[]                @relation("AgenceArrivee")
+
+  @@map("agences")
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  nom          String
+  prenom       String
+  telephone    String?
+  role         Role         @default(CAISSIERE)
+  statut       StatutCompte @default(EN_ATTENTE)
+  agenceId     String?      @map("agence_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  agence                   Agence?                 @relation(fields: [agenceId], references: [id])
+  productionsSaisies       ProductionJournaliere[] @relation("CaissiereProduction")
+  productionsValidees      ProductionJournaliere[] @relation("ChefProduction")
+  commentaires             Commentaire[]
+  validationsInitiees      ValidationCompte[]      @relation("ValidateurCompte")
+  validationsCibles        ValidationCompte[]      @relation("UserValide")
+  auditLogs                AuditLog[]
+  notificationsEnvoyees    Notification[]          @relation("ExpediteurNotification")
+  notificationsRecues      Notification[]          @relation("DestinataireNotification")
+
+  @@map("users")
+}
+
+model Vehicule {
+  id             String   @id @default(uuid())
+  immatriculation String   @unique
+  marque         String?
+  modele         String?
+  capacitePlaces Int
+  agenceId       String   @map("agence_id")
+  enService      Boolean  @default(true) @map("en_service")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  agence       Agence        @relation(fields: [agenceId], references: [id])
+  affectations Affectation[]
+  trajets      Trajet[]
+  maintenances Maintenance[]
+
+  @@map("vehicules")
+}
+
+model Chauffeur {
+  id             String   @id @default(uuid())
+  nom            String
+  prenom         String
+  telephone      String
+  numeroPermis   String   @unique @map("numero_permis")
+  dateExpiration DateTime @map("date_expiration")
+  enService      Boolean  @default(true) @map("en_service")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  affectations Affectation[]
+  trajets      Trajet[]
+
+  @@map("chauffeurs")
+}
+
+model Ligne {
+  id            String   @id @default(uuid())
+  nom           String   // Ex: Douala - Yaoundé
+  distanceKm    Float?   @map("distance_km")
+  prixStandard  Float    @map("prix_standard") // En FCFA
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  trajets Trajet[]
+
+  @@map("lignes")
+}
+
+model Affectation {
+  id           String   @id @default(uuid())
+  vehiculeId   String   @map("vehicule_id")
+  chauffeurId  String   @map("chauffeur_id")
+  dateDebut    DateTime @map("date_debut")
+  dateFin      DateTime? @map("date_fin")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vehicule  Vehicule  @relation(fields: [vehiculeId], references: [id])
+  chauffeur Chauffeur @relation(fields: [chauffeurId], references: [id])
+
+  @@map("affectations")
+}
+
+model Trajet {
+  id              String       @id @default(uuid())
+  ligneId         String       @map("ligne_id")
+  vehiculeId      String       @map("vehicule_id")
+  chauffeurId     String       @map("chauffeur_id")
+  agenceDepartId  String       @map("agence_depart_id")
+  agenceArriveeId String       @map("agence_arrivee_id")
+  dateHeureDepart DateTime     @map("date_heure_depart")
+  dateHeureArrivee DateTime?   @map("date_heure_arrivee")
+  statut          StatutTrajet @default(PROGRAMME)
+  retardMinutes   Int          @default(0) @map("retard_minutes")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  ligne         Ligne         @relation(fields: [ligneId], references: [id])
+  vehicule      Vehicule      @relation(fields: [vehiculeId], references: [id])
+  chauffeur     Chauffeur     @relation(fields: [chauffeurId], references: [id])
+  agenceDepart  Agence        @relation("AgenceDepart", fields: [agenceDepartId], references: [id])
+  agenceArrivee Agence        @relation("AgenceArrivee", fields: [agenceArriveeId], references: [id])
+
+  @@map("trajets")
+}
+
+model ProductionJournaliere {
+  id              String           @id @default(uuid())
+  dateProduction  DateTime         @map("date_production")
+  agenceId        String           @map("agence_id")
+  caissiereId     String           @map("caissiere_id")
+  chefId          String?          @map("chef_id")
+  statut          StatutProduction @default(BROUILLON)
+  
+  // Finances en FCFA
+  recettes        Float            @default(0)
+  carburant       Float            @default(0)
+  peage           Float            @default(0)
+  laverie         Float            @default(0)
+  autresDepenses  Float            @default(0) @map("autres_depenses")
+  netAVerser      Float            @default(0) @map("net_a_verser") // RECETTES - TOTAL_DEPENSES
+  
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  agence       Agence        @relation(fields: [agenceId], references: [id])
+  caissiere    User          @relation("CaissiereProduction", fields: [caissiereId], references: [id])
+  chef         User?         @relation("ChefProduction", fields: [chefId], references: [id])
+  commentaires Commentaire[]
+
+  @@map("productions_journalieres")
+}
+
+model Maintenance {
+  id          String   @id @default(uuid())
+  vehiculeId  String   @map("vehicule_id")
+  date        DateTime
+  description String
+  cout        Float    @default(0) // En FCFA
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  vehicule Vehicule @relation(fields: [vehiculeId], references: [id])
+
+  @@map("maintenance")
+}
+
+model Commentaire {
+  id           String   @id @default(uuid())
+  productionId String   @map("production_id")
+  userId       String   @map("user_id")
+  contenu      String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  production ProductionJournaliere @relation(fields: [productionId], references: [id])
+  user       User                  @relation(fields: [userId], references: [id])
+
+  @@map("commentaires")
+}
+
+model ValidationCompte {
+  id           String       @id @default(uuid())
+  userId       String       @map("user_id")
+  validateurId String       @map("validateur_id")
+  statutAvant  StatutCompte @map("statut_avant")
+  statutApres  StatutCompte @map("statut_apres")
+  motif        String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  user       User @relation("UserValide", fields: [userId], references: [id])
+  validateur User @relation("ValidateurCompte", fields: [validateurId], references: [id])
+
+  @@map("validation_comptes")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  action    String
+  entite    String   // Ex: User, ProductionJournaliere
+  entiteId  String?  @map("entite_id")
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  expediteurId   String?  @map("expediteur_id")
+  destinataireId String   @map("destinataire_id")
+  titre          String
+  message        String
+  lue            Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  expediteur   User? @relation("ExpediteurNotification", fields: [expediteurId], references: [id])
+  destinataire User  @relation("DestinataireNotification", fields: [destinataireId], references: [id])
+
+  @@map("notifications")
+}

@@ -14,13 +14,13 @@ const STORAGE_KEY = 'rex-productions';
 const productionSchema = z.object({
   immatriculation: z.string().min(1, "L'immatriculation est requise"),
   driverName: z.string().min(1, 'Le nom du chauffeur est requis'),
-  totalSeats: z.number({ coerce: true }).min(1, 'Capacité requise'),
-  passengersAtDeparture: z.number({ coerce: true }).min(0, 'Nombre de passagers requis'),
-  revenue: z.number({ coerce: true }).min(0, 'La recette est requise'),
-  fuel: z.number({ coerce: true }).min(0).default(0),
-  toll: z.number({ coerce: true }).min(0).default(0),
-  washing: z.number({ coerce: true }).min(0).default(0),
-  others: z.number({ coerce: true }).min(0).default(0),
+  totalSeats: z.coerce.number().min(1, 'Capacité requise'),
+  passengersAtDeparture: z.coerce.number().min(0, 'Nombre de passagers requis'),
+  revenue: z.coerce.number().min(0, 'La recette est requise'),
+  fuel: z.coerce.number().min(0).default(0),
+  toll: z.coerce.number().min(0).default(0),
+  washing: z.coerce.number().min(0).default(0),
+  others: z.coerce.number().min(0).default(0),
 });
 
 type ProductionFormValues = z.infer<typeof productionSchema>;
@@ -37,7 +37,7 @@ export default function ProductionPage() {
   const [history, setHistory] = useState<ProductionRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<ProductionFormValues>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(productionSchema),
     defaultValues: { totalSeats: 30, fuel: 0, toll: 0, washing: 0, others: 0 },
   });
@@ -174,7 +174,7 @@ export default function ProductionPage() {
               <CardDescription>Saisissez les informations du voyage</CardDescription>
             </CardHeader>
             <CardContent>
-              <form id="production-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <form id="production-form" onSubmit={handleSubmit((data) => onSubmit(data as ProductionFormValues))} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-white">Véhicule (Immatriculation)</Label>
