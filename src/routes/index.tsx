@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createHashRouter } from 'react-router-dom';
 import { AuthLayout } from '../layouts/AuthLayout';
 import { MainLayout } from '../layouts/MainLayout';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -13,7 +13,7 @@ const DriversPage = lazy(() => import('../modules/drivers/DriversPage'));
 const ProductionPage = lazy(() => import('../modules/production/ProductionPage'));
 const ReportsPage = lazy(() => import('../modules/reports/ReportsPage'));
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
   {
     path: '/',
     element: <ProtectedRoute />,
