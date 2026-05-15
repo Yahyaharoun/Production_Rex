@@ -1,53 +1,8 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Mail, Lock, Loader2, UserPlus, Bus, User } from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '../../lib/supabase';
+import { Lock } from 'lucide-react';
 
 export default function RegisterPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password || !name) {
-      toast.error('Erreur', { description: 'Veuillez remplir tous les champs.' });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.user && data.user.identities?.length === 0) {
-        toast.error('Erreur', { description: 'Cet email est déjà utilisé.' });
-      } else {
-        toast.success('Inscription réussie', { description: 'Vous pouvez maintenant vous connecter.' });
-        navigate('/login');
-      }
-    } catch (err: any) {
-      toast.error("Échec de l'inscription", { description: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-sm space-y-6 bg-white p-8 rounded-[2rem] shadow-2xl border border-border animate-in fade-in zoom-in duration-500">
