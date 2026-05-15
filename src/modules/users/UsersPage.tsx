@@ -110,7 +110,7 @@ export default function UsersPage() {
 
       // Use Edge Function (bypasses PostgREST 404 issue with RPCs)
       const { data: { session } } = await supabase.auth.getSession();
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string).replace(/\/$/, '');
       const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
         method: 'POST',
         headers: {
