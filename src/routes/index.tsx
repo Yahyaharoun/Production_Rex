@@ -36,7 +36,14 @@ export const router = createHashRouter([
         children: [
           { index: true, element: <Navigate to="dashboard" replace /> },
           { path: 'dashboard', element: <DashboardPage /> },
-          { path: 'vehicles', element: <VehiclesPage /> },
+          { 
+            path: 'vehicles', 
+            element: (
+              <ProtectedRoute requiredRole={['PDG', 'CHEF_AGENCE']}>
+                <VehiclesPage />
+              </ProtectedRoute>
+            )
+          },
           { path: 'drivers', element: <DriversPage /> },
           { path: 'production', element: <ProductionPage /> },
           { 
@@ -50,7 +57,7 @@ export const router = createHashRouter([
           { 
             path: 'users', 
             element: (
-              <ProtectedRoute requiredRole="PDG">
+              <ProtectedRoute requiredRole={['PDG', 'CHEF_AGENCE']}>
                 <UsersPage />
               </ProtectedRoute>
             )

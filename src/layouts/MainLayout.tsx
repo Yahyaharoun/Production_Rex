@@ -59,10 +59,10 @@ export const MainLayout = () => {
   const navigation = [
     { name: 'Tableau de bord', href: '/app/dashboard', icon: LayoutDashboard },
     { name: 'Production', href: '/app/production', icon: FileText },
-    { name: 'Véhicules', href: '/app/vehicles', icon: CarFront },
+    ...(user?.role !== 'CAISSIERE' ? [{ name: 'Véhicules', href: '/app/vehicles', icon: CarFront }] : []),
     { name: 'Chauffeurs', href: '/app/drivers', icon: Users },
-    { name: 'Rapports', href: '/app/reports', icon: FileText },
-    ...(user?.role === 'PDG' ? [{ name: 'Utilisateurs', href: '/app/users', icon: Users }] : []),
+    ...(user?.role !== 'CAISSIERE' ? [{ name: 'Rapports', href: '/app/reports', icon: FileText }] : []),
+    ...(user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' ? [{ name: 'Utilisateurs', href: '/app/users', icon: Users }] : []),
   ];
 
   const SidebarContent = () => (

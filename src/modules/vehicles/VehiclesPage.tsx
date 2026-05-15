@@ -209,7 +209,7 @@ export default function VehiclesPage() {
           <h2 className="text-2xl font-black tracking-tight text-foreground">Gestion de la Flotte</h2>
           <p className="text-muted-foreground mt-1 font-bold italic">Suivi technique et opérationnel des bus.</p>
         </div>
-        {isAdmin && (
+        {isAdminOrChef && (
           <Button onClick={() => { setShowForm(true); setEditingVehicle(null); }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-black transition-all hover:-translate-y-0.5">
             <Plus className="mr-3 h-5 w-5" />Ajouter Véhicule
           </Button>

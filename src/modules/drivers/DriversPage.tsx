@@ -138,7 +138,8 @@ export default function DriversPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'PDG';
   const isChef = user?.role === 'CHEF_AGENCE';
-  const isAdminOrChef = isAdmin || isChef;
+  const isCaissiere = user?.role === 'CAISSIERE';
+  const canAddDelete = isAdmin || isChef || isCaissiere;
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,7 +252,7 @@ export default function DriversPage() {
           <h2 className="text-2xl font-black tracking-tight text-foreground">Répertoire Chauffeurs</h2>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Gestion des contrats et missions</p>
         </div>
-        {isAdmin && (
+        {canAddDelete && (
           <Button onClick={() => { setShowForm(true); setEditingDriver(null); }} className="bg-primary hover:bg-primary/90 text-white rounded-xl h-11 px-6 font-black shadow-lg">
             <UserPlus className="mr-2 h-4 w-4" /> Ajouter Chauffeur
           </Button>
@@ -313,7 +314,7 @@ export default function DriversPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button className="flex-1 bg-foreground text-white rounded-lg h-9 font-black text-xs" onClick={() => setSelectedDriver(driver)}>Détails</Button>
-                  {isAdminOrChef && (
+                  {canAddDelete && (
                     <>
                       <Button variant="outline" className="border-border rounded-lg h-9 w-9 p-0" onClick={() => setEditingDriver(driver)}>
                         <Edit2 className="h-4 w-4" />

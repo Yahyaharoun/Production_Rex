@@ -64,6 +64,10 @@ export default function ProductionPage() {
   const totalExpenses = Number(fuel) + Number(toll) + Number(washing) + Number(others);
   const netToDeposit = Number(revenue) - totalExpenses;
 
+  const isAdmin = user?.role === 'PDG';
+  const isChef = user?.role === 'CHEF_AGENCE';
+  const canValidate = isAdmin || isChef;
+
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
@@ -121,10 +125,19 @@ export default function ProductionPage() {
   };
 
   const deleteRecord = async (id: string) => {
+    if (!window.confirm('Voulez-vous vraiment supprimer cette entrée ?')) return;
     const { error } = await supabase.from('productions').delete().eq('id', id);
     if (error) { toast.error('Erreur suppression'); return; }
     setHistory((prev) => prev.filter((r) => r.id !== id));
     toast.success('Entrée supprimée');
+  };
+
+  const validateRecord = async (id: string) => {
+    if (!window.confirm('Voulez-vous valider cette production ? Cette action est irréversible.')) return;
+    const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
+    if (error) { toast.error('Erreur de validation'); return; }
+    setHistory((prev) => prev.map((r) => r.id === id ? { ...r, status: 'VALIDATED' } : r));
+    toast.success('Production validée');
   };
 
   return (
@@ -136,7 +149,7 @@ export default function ProductionPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowHistory(!showHistory)} className="rounded-xl h-10 border-border bg-white font-bold text-xs shadow-sm">
-            <History className="mr-2 h-4 w-4" /> {showHistory ? 'Nouveau bordereau' : 'Historique'}
+            <History className="mr-2 h-4 w-4" /> {showHistory ? 'Nouveau bordereau' : 'Historique & Validation'}
           </Button>
         </div>
       </div>
@@ -168,7 +181,7 @@ export default function ProductionPage() {
                       <th className="px-4 py-3 text-right">Recette</th>
                       <th className="px-4 py-3 text-right">Net</th>
                       <th className="px-4 py-3 text-center">Statut</th>
-                      <th className="px-4 py-3"></th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
@@ -182,16 +195,23 @@ export default function ProductionPage() {
                         <td className="px-4 py-3 text-right text-foreground font-medium">{Number(r.revenue).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-primary font-black">{Number(r.net_to_deposit).toLocaleString()}</td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold tracking-widest uppercase ${r.status === 'VALIDATED' ? 'bg-green-100 text-green-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-secondary text-muted-foreground'}`}>
-                            {r.status}
+                          <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold tracking-widest uppercase ${r.status === 'VALIDATED' ? 'bg-green-100 text-green-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {r.status === 'DRAFT' ? 'EN ATTENTE' : r.status === 'VALIDATED' ? 'VALIDÉ' : r.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {r.status === 'DRAFT' && (
-                            <button onClick={() => deleteRecord(r.id)} className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
+                          <div className="flex justify-end gap-2">
+                            {r.status === 'DRAFT' && canValidate && (
+                              <button onClick={() => validateRecord(r.id)} className="text-green-600 bg-green-50 hover:bg-green-100 p-1.5 rounded-lg transition-colors border border-green-200" title="Valider">
+                                <CheckCircle className="h-4 w-4" />
+                              </button>
+                            )}
+                            {r.status === 'DRAFT' && (
+                              <button onClick={() => deleteRecord(r.id)} className="text-destructive bg-destructive/5 hover:bg-destructive/10 p-1.5 rounded-lg transition-colors border border-destructive/20" title="Supprimer">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

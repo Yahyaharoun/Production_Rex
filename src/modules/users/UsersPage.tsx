@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { UserPlus, Users, Loader2, Trash2, ShieldCheck, Phone, CreditCard } from 'lucide-react';
+import { UserPlus, Users, Loader2, Trash2, ShieldCheck, Phone, CreditCard, PowerOff, Power } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
+import { useAuthStore } from '../../store/useAuthStore';
 
 interface Profile {
   id: string;
@@ -17,6 +18,7 @@ interface Profile {
   phone: string;
   cni_number: string;
   agence_id: string | null;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -26,6 +28,7 @@ interface Agency {
 }
 
 export default function UsersPage() {
+  const { user } = useAuthStore();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,10 +38,12 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR'>('CHEF_AGENCE');
+  const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR'>('CAISSIERE');
   const [phone, setPhone] = useState('');
   const [cni, setCni] = useState('');
   const [agenceId, setAgenceId] = useState<string>('none');
+
+  const isPDG = user?.role === 'PDG';
 
   const fetchData = async () => {
     setLoading(true);
@@ -51,7 +56,14 @@ export default function UsersPage() {
       if (profilesRes.error) throw profilesRes.error;
       if (agenciesRes.error) throw agenciesRes.error;
 
-      setProfiles(profilesRes.data || []);
+      let fetchedProfiles = profilesRes.data || [];
+      
+      // Le chef d'agence ne voit que les caissières (et les chauffeurs s'ils existent ici)
+      if (!isPDG) {
+        fetchedProfiles = fetchedProfiles.filter(p => p.role === 'CAISSIERE');
+      }
+
+      setProfiles(fetchedProfiles);
       setAgencies(agenciesRes.data || []);
     } catch (err: any) {
       toast.error('Erreur', { description: err.message });
@@ -73,12 +85,13 @@ export default function UsersPage() {
 
     setCreating(true);
     try {
-      // Call the Postgres function we created
+      const targetRole = isPDG ? role : 'CAISSIERE';
+
       const { error } = await supabase.rpc('admin_create_user', {
         user_email: email,
         user_password: password,
         user_full_name: name,
-        user_role: role,
+        user_role: targetRole,
         user_phone: phone,
         user_cni: cni,
         user_agence_id: agenceId === 'none' ? null : agenceId
@@ -117,7 +130,28 @@ export default function UsersPage() {
       toast.success('Utilisateur supprimé', { description: 'Le compte a été retiré avec succès.' });
       fetchData();
     } catch (err: any) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur de suppression', { description: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const actionName = newStatus ? 'activer' : 'suspendre';
+    if (!window.confirm(`Voulez-vous vraiment ${actionName} cet utilisateur ?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc('admin_toggle_user_status', { target_user_id: userId, new_status: newStatus });
+      if (error) throw error;
+      
+      toast.success('Statut mis à jour', { description: `L'utilisateur a été ${newStatus ? 'activé' : 'suspendu'}.` });
+      fetchData();
+    } catch (err: any) {
+      toast.error('Erreur de modification', { description: err.message });
     } finally {
       setLoading(false);
     }
@@ -127,7 +161,7 @@ export default function UsersPage() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h2 className="text-3xl font-black tracking-tight text-foreground">Gestion des Comptes</h2>
-        <p className="text-muted-foreground mt-1 font-medium">Créez et gérez les comptes des Chefs d'agences et Caissières.</p>
+        <p className="text-muted-foreground mt-1 font-medium">Créez et gérez les accès au système.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -159,12 +193,17 @@ export default function UsersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Rôle</Label>
-                  <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
-                    className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="CHEF_AGENCE">Chef d'Agence</option>
-                    <option value="CAISSIERE">Caissière</option>
-                    <option value="CHAUFFEUR">Chauffeur</option>
-                  </select>
+                  {isPDG ? (
+                    <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
+                      className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                      <option value="CHEF_AGENCE">Chef d'Agence</option>
+                      <option value="CAISSIERE">Caissière</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center h-11 px-3 bg-secondary/10 border border-border rounded-xl text-sm text-muted-foreground font-bold">
+                      Caissière (Auto)
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="agence">Agence</Label>
@@ -224,9 +263,9 @@ export default function UsersPage() {
                       <tr>
                         <th className="px-6 py-4">Utilisateur</th>
                         <th className="px-6 py-4">Rôle</th>
-                        <th className="px-6 py-4">Coordonnées</th>
+                        <th className="px-6 py-4">Statut</th>
                         <th className="px-6 py-4">Agence</th>
-                        <th className="px-6 py-4"></th>
+                        <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
@@ -254,20 +293,28 @@ export default function UsersPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="space-y-1">
-                              {p.phone && <p className="text-[10px] font-medium flex items-center gap-1"><Phone className="h-3 w-3" /> {p.phone}</p>}
-                              {p.cni_number && <p className="text-[10px] font-medium flex items-center gap-1"><CreditCard className="h-3 w-3" /> CNI: {p.cni_number}</p>}
-                              {!p.phone && !p.cni_number && <span className="text-muted-foreground text-xs italic">N/A</span>}
-                            </div>
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                              p.is_active ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                            )}>
+                              {p.is_active ? 'Actif' : 'Suspendu'}
+                            </span>
                           </td>
                           <td className="px-6 py-4 font-medium text-muted-foreground">
                             {agencies.find(a => a.id === p.agence_id)?.name || 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {p.role !== 'PDG' && (
-                              <button onClick={() => handleDeleteUser(p.id)} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                            {p.role !== 'PDG' && (isPDG || p.role === 'CAISSIERE') && (
+                              <div className="flex justify-end gap-2">
+                                <button onClick={() => handleToggleStatus(p.id, p.is_active)} 
+                                  className={cn("p-2 rounded-lg transition-colors border shadow-sm", p.is_active ? "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100" : "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100")}
+                                  title={p.is_active ? "Suspendre" : "Activer"}>
+                                  {p.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                                </button>
+                                <button onClick={() => handleDeleteUser(p.id)} className="text-destructive hover:bg-destructive/10 border border-destructive/20 p-2 rounded-lg transition-colors shadow-sm" title="Supprimer">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
