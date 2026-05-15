@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { FileText, History, Loader2, Bus, Trash2, Calculator, Save, CheckCircle } from 'lucide-react';
+import { FileText, History, Loader2, Bus, Trash2, Calculator, Save, CheckCircle, MapPin, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -22,8 +22,15 @@ const productionSchema = z.object({
   toll: z.coerce.number().min(0).default(0),
   washing: z.coerce.number().min(0).default(0),
   others: z.coerce.number().min(0).default(0),
+  ligne: z.string().min(1, 'La ligne est requise'),
 });
 type ProductionFormValues = z.infer<typeof productionSchema>;
+
+interface Agency {
+  id: string;
+  name: string;
+  city: string;
+}
 
 interface ProductionRecord {
   id: string;
@@ -40,6 +47,9 @@ interface ProductionRecord {
   date: string;
   status: string;
   created_at: string;
+  caissiere_name?: string;
+  ligne?: string;
+  agence_id?: string;
 }
 
 export default function ProductionPage() {
@@ -47,12 +57,21 @@ export default function ProductionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [history, setHistory] = useState<ProductionRecord[]>([]);
+  const [agencies, setAgencies] = useState<Agency[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const { register, control, handleSubmit, reset, formState: { errors } } = useForm({
+  const isAdmin = user?.role === 'PDG';
+  const isChef = user?.role === 'CHEF_AGENCE';
+  const isCaissiere = user?.role === 'CAISSIERE';
+  const canValidate = isAdmin || isChef;
+
+  // Determine default ligne from user's agence
+  const userAgenceId = user?.agenceId || '';
+
+  const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm({
     resolver: zodResolver(productionSchema),
-    defaultValues: { totalSeats: 30, fuel: 0, toll: 0, washing: 0, others: 0 },
+    defaultValues: { totalSeats: 30, fuel: 0, toll: 0, washing: 0, others: 0, ligne: '' },
   });
 
   const revenue = useWatch({ control, name: 'revenue', defaultValue: 0 }) || 0;
@@ -64,9 +83,19 @@ export default function ProductionPage() {
   const totalExpenses = Number(fuel) + Number(toll) + Number(washing) + Number(others);
   const netToDeposit = Number(revenue) - totalExpenses;
 
-  const isAdmin = user?.role === 'PDG';
-  const isChef = user?.role === 'CHEF_AGENCE';
-  const canValidate = isAdmin || isChef;
+  const fetchAgencies = async () => {
+    const { data } = await supabase.from('agencies').select('id, name, city').order('name');
+    if (data) {
+      setAgencies(data);
+      // Auto-set ligne if user has an agence
+      if (userAgenceId) {
+        const myAgence = data.find((a: Agency) => a.id === userAgenceId);
+        if (myAgence) {
+          setValue('ligne', myAgence.name);
+        }
+      }
+    }
+  };
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
@@ -75,7 +104,7 @@ export default function ProductionPage() {
         .from('productions')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       setHistory(data || []);
     } catch (err: any) {
@@ -85,12 +114,19 @@ export default function ProductionPage() {
     }
   };
 
-  useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => {
+    fetchAgencies();
+    fetchHistory();
+  }, []);
 
   const onSubmit = async (data: ProductionFormValues) => {
     setIsSubmitting(true);
     setSaved(false);
     try {
+      // Find agence_id by ligne name
+      const selectedAgence = agencies.find(a => a.name === data.ligne);
+      const agenceId = selectedAgence?.id || userAgenceId || null;
+
       const { error } = await supabase.from('productions').insert({
         immatriculation: data.immatriculation,
         driver_name: data.driverName,
@@ -104,16 +140,20 @@ export default function ProductionPage() {
         status: 'DRAFT',
         created_by: user?.id,
         date: new Date().toISOString().split('T')[0],
+        caissiere_name: user?.name || '',
+        ligne: data.ligne,
+        agence_id: agenceId,
       });
       if (error) throw error;
 
       setSaved(true);
       toast.success('Production enregistrée', {
-        description: `Net à verser : ${netToDeposit.toLocaleString()} XAF`,
+        description: `Net à verser : ${netToDeposit.toLocaleString()} XAF — Ligne: ${data.ligne}`,
       });
       fetchHistory();
       setTimeout(() => {
-        reset({ totalSeats: 30, fuel: 0, toll: 0, washing: 0, others: 0 });
+        const defaultLigne = agencies.find(a => a.id === userAgenceId)?.name || '';
+        reset({ totalSeats: 30, fuel: 0, toll: 0, washing: 0, others: 0, ligne: defaultLigne });
         setSaved(false);
       }, 2000);
     } catch (err: any) {
@@ -134,11 +174,20 @@ export default function ProductionPage() {
 
   const validateRecord = async (id: string) => {
     if (!window.confirm('Voulez-vous valider cette production ? Cette action est irréversible.')) return;
-    const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
-    if (error) { toast.error('Erreur de validation'); return; }
+    const { error } = await supabase.from('productions').update({
+      status: 'VALIDATED',
+      validated_by: user?.id,
+      validated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) { toast.error('Erreur de validation', { description: error.message }); return; }
     setHistory((prev) => prev.map((r) => r.id === id ? { ...r, status: 'VALIDATED' } : r));
-    toast.success('Production validée');
+    toast.success('Production validée ✓');
   };
+
+  // For chef d'agence: only show their ligne's history
+  const filteredHistory = isChef
+    ? history.filter(r => r.agence_id === userAgenceId)
+    : history;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700 max-w-5xl mx-auto">
@@ -158,7 +207,13 @@ export default function ProductionPage() {
         <Card className="bg-white border-border shadow-2xl rounded-[1.25rem] overflow-hidden border-2 animate-in slide-in-from-bottom-4 duration-500">
           <CardHeader className="bg-primary/5 p-6 border-b border-border/50">
             <CardTitle className="text-lg font-black flex items-center gap-2">
-              <Bus className="h-5 w-5 text-primary" /> Détails du Voyage
+              <Bus className="h-5 w-5 text-primary" /> 
+              Historique des Productions
+              {isChef && (
+                <span className="ml-2 text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg">
+                  {agencies.find(a => a.id === userAgenceId)?.name || 'Votre ligne'}
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -168,7 +223,7 @@ export default function ProductionPage() {
                 <Skeleton className="h-12 w-full rounded-lg" />
                 <Skeleton className="h-12 w-full rounded-lg" />
               </div>
-            ) : history.length === 0 ? (
+            ) : filteredHistory.length === 0 ? (
               <p className="text-center text-muted-foreground py-6 font-medium">Aucune production enregistrée.</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-border">
@@ -178,6 +233,8 @@ export default function ProductionPage() {
                       <th className="px-4 py-3 text-left">Date</th>
                       <th className="px-4 py-3 text-left">Véhicule</th>
                       <th className="px-4 py-3 text-left">Chauffeur</th>
+                      <th className="px-4 py-3 text-left">Caissière</th>
+                      <th className="px-4 py-3 text-left">Ligne</th>
                       <th className="px-4 py-3 text-right">Recette</th>
                       <th className="px-4 py-3 text-right">Net</th>
                       <th className="px-4 py-3 text-center">Statut</th>
@@ -185,13 +242,25 @@ export default function ProductionPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
-                    {history.map((r) => (
+                    {filteredHistory.map((r) => (
                       <tr key={r.id} className="hover:bg-secondary/30 transition-colors">
                         <td className="px-4 py-3 text-muted-foreground text-xs font-medium">
                           {new Date(r.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td className="px-4 py-3 text-foreground font-bold">{r.immatriculation}</td>
                         <td className="px-4 py-3 text-muted-foreground font-medium">{r.driver_name}</td>
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-1 text-xs font-bold text-foreground">
+                            <User className="h-3 w-3 text-primary" />
+                            {r.caissiere_name || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-1 text-xs font-bold text-primary">
+                            <MapPin className="h-3 w-3" />
+                            {r.ligne || '—'}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-right text-foreground font-medium">{Number(r.revenue).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-primary font-black">{Number(r.net_to_deposit).toLocaleString()}</td>
                         <td className="px-4 py-3 text-center">
@@ -206,7 +275,7 @@ export default function ProductionPage() {
                                 <CheckCircle className="h-4 w-4" />
                               </button>
                             )}
-                            {r.status === 'DRAFT' && (
+                            {r.status === 'DRAFT' && (isAdmin || r.caissiere_name === user?.name) && (
                               <button onClick={() => deleteRecord(r.id)} className="text-destructive bg-destructive/5 hover:bg-destructive/10 p-1.5 rounded-lg transition-colors border border-destructive/20" title="Supprimer">
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -234,6 +303,45 @@ export default function ProductionPage() {
             </CardHeader>
             <CardContent className="pt-6">
               <form id="production-form" onSubmit={handleSubmit((data) => onSubmit(data as ProductionFormValues))} className="space-y-6">
+
+                {/* Info Caissière (auto) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-1">
+                      <User className="h-3 w-3" /> Caissière (Saisie par)
+                    </Label>
+                    <div className="flex items-center h-10 px-3 bg-white/80 border border-primary/30 rounded-xl text-sm font-bold text-foreground">
+                      {user?.name || 'Utilisateur'}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Ligne de travail *
+                    </Label>
+                    {isCaissiere && userAgenceId ? (
+                      // Caissière: ligne auto depuis son agence
+                      <div className="flex items-center h-10 px-3 bg-white/80 border border-primary/30 rounded-xl text-sm font-bold text-primary">
+                        {agencies.find(a => a.id === userAgenceId)?.name || 'Chargement...'}
+                      </div>
+                    ) : (
+                      <select {...register('ligne')}
+                        className="w-full rounded-xl bg-white border border-primary/30 h-10 px-3 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="">— Sélectionner une ligne —</option>
+                        <option value="Yaounde">Yaoundé</option>
+                        <option value="Mbalmayo">Mbalmayo</option>
+                        <option value="Ayos">Ayos</option>
+                        <option value="Akonolinga">Akonolinga</option>
+                        <option value="Mimbomane">Mimbomane</option>
+                        {agencies
+                          .filter(a => !['Yaounde','Mbalmayo','Ayos','Akonolinga','Mimbomane'].includes(a.name))
+                          .map(a => <option key={a.id} value={a.name}>{a.name}</option>)
+                        }
+                      </select>
+                    )}
+                    {errors.ligne && <p className="text-xs text-destructive font-semibold">{errors.ligne.message}</p>}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2 group">
                     <Label className="text-foreground font-bold text-sm transition-colors group-focus-within:text-primary">Véhicule (Immatriculation)</Label>

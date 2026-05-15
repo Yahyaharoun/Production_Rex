@@ -138,8 +138,7 @@ export default function DriversPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'PDG';
   const isChef = user?.role === 'CHEF_AGENCE';
-  const isCaissiere = user?.role === 'CAISSIERE';
-  const canAddDelete = isAdmin || isChef || isCaissiere;
+  const canAddDelete = isAdmin || isChef;
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);

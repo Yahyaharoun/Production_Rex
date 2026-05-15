@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { UserPlus, Users, Loader2, Trash2, ShieldCheck, Phone, CreditCard, PowerOff, Power } from 'lucide-react';
+import { UserPlus, Users, Loader2, Trash2, ShieldCheck, Phone, CreditCard, PowerOff, Power, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -34,16 +34,18 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
-  // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR'>('CAISSIERE');
+  const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE'>('CAISSIERE');
   const [phone, setPhone] = useState('');
   const [cni, setCni] = useState('');
   const [agenceId, setAgenceId] = useState<string>('none');
 
   const isPDG = user?.role === 'PDG';
+  const isChef = user?.role === 'CHEF_AGENCE';
+  // Chef's own agency
+  const chefAgenceId = user?.agenceId || null;
 
   const fetchData = async () => {
     setLoading(true);
@@ -57,14 +59,24 @@ export default function UsersPage() {
       if (agenciesRes.error) throw agenciesRes.error;
 
       let fetchedProfiles = profilesRes.data || [];
-      
-      // Le chef d'agence ne voit que les caissières (et les chauffeurs s'ils existent ici)
-      if (!isPDG) {
-        fetchedProfiles = fetchedProfiles.filter(p => p.role === 'CAISSIERE');
+
+      if (isPDG) {
+        // PDG voit tout sauf les autres PDG
+        fetchedProfiles = fetchedProfiles.filter(p => p.role !== 'PDG' || p.id === user?.id);
+      } else if (isChef) {
+        // Chef voit uniquement les caissières de SA propre agence
+        fetchedProfiles = fetchedProfiles.filter(p =>
+          p.role === 'CAISSIERE' && p.agence_id === chefAgenceId
+        );
       }
 
       setProfiles(fetchedProfiles);
       setAgencies(agenciesRes.data || []);
+
+      // Pre-select chef's own agency
+      if (isChef && chefAgenceId) {
+        setAgenceId(chefAgenceId);
+      }
     } catch (err: any) {
       toast.error('Erreur', { description: err.message });
     } finally {
@@ -83,9 +95,18 @@ export default function UsersPage() {
       return;
     }
 
+    // Chef can only create CAISSIERE for their own agency
+    if (isChef && agenceId !== chefAgenceId && chefAgenceId) {
+      toast.error('Accès refusé', { description: 'Vous ne pouvez créer des caissières que pour votre propre agence.' });
+      return;
+    }
+
     setCreating(true);
     try {
+      // Force role to CAISSIERE for chef
       const targetRole = isPDG ? role : 'CAISSIERE';
+      // Force agence to chef's own agence if chef
+      const targetAgenceId = isPDG ? (agenceId === 'none' ? null : agenceId) : chefAgenceId;
 
       const { error } = await supabase.rpc('admin_create_user', {
         user_email: email,
@@ -94,21 +115,20 @@ export default function UsersPage() {
         user_role: targetRole,
         user_phone: phone,
         user_cni: cni,
-        user_agence_id: agenceId === 'none' ? null : agenceId
+        user_agence_id: targetAgenceId
       });
 
       if (error) throw error;
 
       toast.success('Compte créé', { description: `L'utilisateur ${name} a été ajouté avec succès.` });
-      
-      // Reset form
+
       setEmail('');
       setPassword('');
       setName('');
       setPhone('');
       setCni('');
-      setAgenceId('none');
-      
+      if (isPDG) setAgenceId('none');
+
       fetchData();
     } catch (err: any) {
       toast.error('Erreur de création', { description: err.message });
@@ -118,16 +138,12 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irréversible.')) {
-      return;
-    }
-
+    if (!window.confirm('Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irréversible.')) return;
     setLoading(true);
     try {
       const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
       if (error) throw error;
-      
-      toast.success('Utilisateur supprimé', { description: 'Le compte a été retiré avec succès.' });
+      toast.success('Utilisateur supprimé');
       fetchData();
     } catch (err: any) {
       toast.error('Erreur de suppression', { description: err.message });
@@ -138,16 +154,11 @@ export default function UsersPage() {
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
-    const actionName = newStatus ? 'activer' : 'suspendre';
-    if (!window.confirm(`Voulez-vous vraiment ${actionName} cet utilisateur ?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Voulez-vous vraiment ${newStatus ? 'activer' : 'suspendre'} cet utilisateur ?`)) return;
     setLoading(true);
     try {
       const { error } = await supabase.rpc('admin_toggle_user_status', { target_user_id: userId, new_status: newStatus });
       if (error) throw error;
-      
       toast.success('Statut mis à jour', { description: `L'utilisateur a été ${newStatus ? 'activé' : 'suspendu'}.` });
       fetchData();
     } catch (err: any) {
@@ -157,11 +168,17 @@ export default function UsersPage() {
     }
   };
 
+  const myAgenceName = agencies.find(a => a.id === chefAgenceId)?.name;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h2 className="text-3xl font-black tracking-tight text-foreground">Gestion des Comptes</h2>
-        <p className="text-muted-foreground mt-1 font-medium">Créez et gérez les accès au système.</p>
+        <p className="text-muted-foreground mt-1 font-medium">
+          {isPDG
+            ? 'Créez et gérez les accès au système (Chefs d\'agence & Caissières).'
+            : `Gérez les caissières de votre agence${myAgenceName ? ` — ${myAgenceName}` : ''}.`}
+        </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -171,7 +188,9 @@ export default function UsersPage() {
             <CardTitle className="text-foreground flex items-center font-black text-lg">
               <UserPlus className="mr-2 h-5 w-5 text-primary" /> Nouveau Compte
             </CardTitle>
-            <CardDescription>Ajoutez un nouveau collaborateur au système.</CardDescription>
+            <CardDescription>
+              {isPDG ? 'Ajoutez un chef d\'agence ou une caissière.' : 'Ajoutez une caissière à votre agence.'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <form onSubmit={handleCreateUser} className="space-y-4">
@@ -179,7 +198,7 @@ export default function UsersPage() {
                 <Label htmlFor="name">Nom Complet</Label>
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Jean Dupont" className="bg-secondary/20 border-border rounded-xl h-11" required />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email (Identifiant)</Label>
                 <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jean.dupont@rex.cm" className="bg-secondary/20 border-border rounded-xl h-11" required />
@@ -206,14 +225,21 @@ export default function UsersPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="agence">Agence</Label>
-                  <select id="agence" value={agenceId} onChange={(e) => setAgenceId(e.target.value)}
-                    className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="none">Aucune</option>
-                    {agencies.map(a => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
+                  <Label htmlFor="agence">Agence / Ligne</Label>
+                  {isPDG ? (
+                    <select id="agence" value={agenceId} onChange={(e) => setAgenceId(e.target.value)}
+                      className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                      <option value="none">Aucune</option>
+                      {agencies.map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-1.5 h-11 px-3 bg-primary/5 border border-primary/30 rounded-xl text-sm text-primary font-bold">
+                      <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                      {myAgenceName || 'Votre agence'}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -222,7 +248,7 @@ export default function UsersPage() {
                 <div className="space-y-3">
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Numéro de ligne" className="pl-10 bg-secondary/10 border-border rounded-xl h-11" />
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Numéro de téléphone" className="pl-10 bg-secondary/10 border-border rounded-xl h-11" />
                   </div>
                   <div className="relative">
                     <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -244,7 +270,8 @@ export default function UsersPage() {
           <Card className="bg-white border-border shadow-sm rounded-2xl overflow-hidden">
             <CardHeader className="pb-4 border-b border-border/50">
               <CardTitle className="text-foreground flex items-center font-black text-lg">
-                <Users className="mr-2 h-5 w-5 text-primary" /> Utilisateurs existants
+                <Users className="mr-2 h-5 w-5 text-primary" />
+                {isPDG ? 'Tous les utilisateurs' : `Caissières — ${myAgenceName || 'Mon agence'}`}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -255,7 +282,9 @@ export default function UsersPage() {
                   <Skeleton className="h-16 w-full rounded-xl" />
                 </div>
               ) : profiles.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground font-medium">Aucun utilisateur trouvé.</div>
+                <div className="p-12 text-center text-muted-foreground font-medium">
+                  {isChef ? 'Aucune caissière dans votre agence.' : 'Aucun utilisateur trouvé.'}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
@@ -285,7 +314,7 @@ export default function UsersPage() {
                           <td className="px-6 py-4">
                             <span className={cn(
                               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                              p.role === 'PDG' ? "bg-purple-100 text-purple-700" : 
+                              p.role === 'PDG' ? "bg-purple-100 text-purple-700" :
                               p.role === 'CHEF_AGENCE' ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
                             )}>
                               {p.role === 'PDG' && <ShieldCheck className="h-3 w-3" />}
@@ -304,9 +333,9 @@ export default function UsersPage() {
                             {agencies.find(a => a.id === p.agence_id)?.name || 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {p.role !== 'PDG' && (isPDG || p.role === 'CAISSIERE') && (
+                            {p.role !== 'PDG' && (isPDG || (isChef && p.role === 'CAISSIERE' && p.agence_id === chefAgenceId)) && (
                               <div className="flex justify-end gap-2">
-                                <button onClick={() => handleToggleStatus(p.id, p.is_active)} 
+                                <button onClick={() => handleToggleStatus(p.id, p.is_active)}
                                   className={cn("p-2 rounded-lg transition-colors border shadow-sm", p.is_active ? "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100" : "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100")}
                                   title={p.is_active ? "Suspendre" : "Activer"}>
                                   {p.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
