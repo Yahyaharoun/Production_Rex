@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -107,15 +107,12 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="text-center pt-4 border-t border-border/50 space-y-3">
-          <p className="text-xs font-bold text-muted-foreground">
-            Pas encore de compte ?{' '}
-            <Link to="/login/register" className="text-primary hover:underline font-black">
-              S'inscrire
-            </Link>
-          </p>
+        <div className="text-center pt-4 border-t border-border/50">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             © 2026 Production Rex System
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Contactez votre administrateur pour obtenir un accès.
           </p>
         </div>
       </div>
