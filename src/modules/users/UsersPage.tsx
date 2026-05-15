@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { UserPlus, Users, Loader2, Trash2, ShieldCheck, Phone, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
+import { cn } from '../../lib/utils';
 
 interface Profile {
   id: string;
@@ -74,7 +74,7 @@ export default function UsersPage() {
     setCreating(true);
     try {
       // Call the Postgres function we created
-      const { data, error } = await supabase.rpc('admin_create_user', {
+      const { error } = await supabase.rpc('admin_create_user', {
         user_email: email,
         user_password: password,
         user_full_name: name,
@@ -101,6 +101,25 @@ export default function UsersPage() {
       toast.error('Erreur de création', { description: err.message });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irréversible.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
+      if (error) throw error;
+      
+      toast.success('Utilisateur supprimé', { description: 'Le compte a été retiré avec succès.' });
+      fetchData();
+    } catch (err: any) {
+      toast.error('Erreur', { description: err.message });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -140,30 +159,22 @@ export default function UsersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Rôle</Label>
-                  <Select value={role} onValueChange={(v: any) => setRole(v)}>
-                    <SelectTrigger className="bg-secondary/20 border-border rounded-xl h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CHEF_AGENCE">Chef d'Agence</SelectItem>
-                      <SelectItem value="CAISSIERE">Caissière</SelectItem>
-                      <SelectItem value="CHAUFFEUR">Chauffeur</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
+                    className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="CHEF_AGENCE">Chef d'Agence</option>
+                    <option value="CAISSIERE">Caissière</option>
+                    <option value="CHAUFFEUR">Chauffeur</option>
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="agence">Agence</Label>
-                  <Select value={agenceId} onValueChange={setAgenceId}>
-                    <SelectTrigger className="bg-secondary/20 border-border rounded-xl h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Aucune</SelectItem>
-                      {agencies.map(a => (
-                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select id="agence" value={agenceId} onChange={(e) => setAgenceId(e.target.value)}
+                    className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="none">Aucune</option>
+                    {agencies.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -254,7 +265,7 @@ export default function UsersPage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             {p.role !== 'PDG' && (
-                              <button onClick={() => toast.info('Bientôt disponible', { description: 'La suppression sera activée prochainement.' })} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
+                              <button onClick={() => handleDeleteUser(p.id)} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             )}

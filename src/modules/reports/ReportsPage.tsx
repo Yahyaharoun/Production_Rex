@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { FileText, Download, Filter, Search, Loader2, Calendar, FileDown, TrendingUp, BarChart3, PieChart } from 'lucide-react';
+import { FileText, Filter, Search, Calendar, FileDown, TrendingUp, TrendingDown, Clock, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -30,7 +30,7 @@ type ReportPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
 export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
-  const [period, setPeriod] = useState<ReportPeriod>('CUSTOM');
+  const [period, setPeriod] = useState<ReportPeriod>('DAILY');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [search, setSearch] = useState('');
@@ -41,35 +41,37 @@ export default function ReportsPage() {
       let query = supabase.from('productions').select('*').order('date', { ascending: false });
       
       const now = new Date();
-      let start = dateStart;
-      let end = dateEnd;
+      let start = '';
+      let end = now.toISOString().split('T')[0];
 
-      if (period !== 'CUSTOM') {
+      if (period === 'DAILY') {
+        start = end;
+      } else if (period === 'WEEKLY') {
         const d = new Date();
-        if (period === 'DAILY') {
-          start = d.toISOString().split('T')[0];
-          end = start;
-        } else if (period === 'WEEKLY') {
-          d.setDate(d.getDate() - 7);
-          start = d.toISOString().split('T')[0];
-          end = new Date().toISOString().split('T')[0];
-        } else if (period === 'MONTHLY') {
-          start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-          end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-        } else if (period === 'YEARLY') {
-          start = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
-          end = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
-        }
+        d.setDate(d.getDate() - 7);
+        start = d.toISOString().split('T')[0];
+      } else if (period === 'MONTHLY') {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        start = d.toISOString().split('T')[0];
+      } else if (period === 'YEARLY') {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - 1);
+        start = d.toISOString().split('T')[0];
+      } else if (period === 'CUSTOM') {
+        if (dateStart) query = query.gte('date', dateStart);
+        if (dateEnd) query = query.lte('date', dateEnd);
       }
 
-      if (start) query = query.gte('date', start);
-      if (end) query = query.lte('date', end);
+      if (period !== 'CUSTOM') {
+        query = query.gte('date', start).lte('date', end);
+      }
       
       const { data, error } = await query;
       if (error) throw error;
       setRecords(data || []);
     } catch (err: any) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur de chargement', { description: err.message });
     } finally {
       setLoading(false);
     }
@@ -77,202 +79,295 @@ export default function ReportsPage() {
 
   useEffect(() => { fetchReports(); }, [period]);
 
-  const totalRevenue = records.reduce((sum, r) => sum + Number(r.revenue), 0);
-  const totalExpenses = records.reduce((sum, r) => sum + (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)), 0);
-  const totalNet = records.reduce((sum, r) => sum + Number(r.net_to_deposit), 0);
-
   const filteredRecords = records.filter(r => 
     r.immatriculation.toLowerCase().includes(search.toLowerCase()) ||
     r.driver_name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const exportPDF = () => {
-    if (filteredRecords.length === 0) {
-      toast.error('Aucune donnée à exporter');
-      return;
-    }
+  const totalRevenue = filteredRecords.reduce((sum, r) => sum + Number(r.revenue), 0);
+  const totalExpenses = filteredRecords.reduce((sum, r) => sum + (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)), 0);
+  const totalNet = filteredRecords.reduce((sum, r) => {
+    const net = Number(r.net_to_deposit) || (Number(r.revenue) - (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)));
+    return sum + net;
+  }, 0);
 
+  const exportPDF = async () => {
+    setLoading(true);
+    console.log('[REX-PDF] Début de la génération du rapport. Période:', period);
     try {
-      const doc = new jsPDF();
-      const periodLabel = { DAILY: 'Journalier', WEEKLY: 'Hebdomadaire', MONTHLY: 'Mensuel', YEARLY: 'Annuel', CUSTOM: 'Personnalisé' }[period];
+      // Fetch fresh data for the selected period directly from Supabase
+      let query = supabase.from('productions').select('*').order('date', { ascending: false });
       
-      // Header
-      doc.setFillColor(16, 185, 129); // Primary color
-      doc.rect(0, 0, 210, 40, 'F');
+      const now = new Date();
+      let start = '';
+      let end = now.toISOString().split('T')[0];
+
+      if (period === 'DAILY') {
+        start = end;
+      } else if (period === 'WEEKLY') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        start = d.toISOString().split('T')[0];
+      } else if (period === 'MONTHLY') {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        start = d.toISOString().split('T')[0];
+      } else if (period === 'YEARLY') {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - 1);
+        start = d.toISOString().split('T')[0];
+      } else if (period === 'CUSTOM') {
+        if (dateStart) query = query.gte('date', dateStart);
+        if (dateEnd) query = query.lte('date', dateEnd);
+      }
+
+      if (period !== 'CUSTOM') {
+        query = query.gte('date', start).lte('date', end);
+      }
+      
+      console.log('[REX-PDF] Exécution de la requête Supabase pour la période:', { start, end });
+      const { data: exportData, error } = await query;
+      
+      if (error) {
+        console.error('[REX-PDF] Erreur lors du fetch des données:', error);
+        throw error;
+      }
+
+      if (!exportData || exportData.length === 0) {
+        console.warn('[REX-PDF] Aucune donnée trouvée pour l\'export.');
+        toast.error('Aucune donnée à exporter pour cette période');
+        return;
+      }
+
+      console.log(`[REX-PDF] Données récupérées: ${exportData.length} enregistrements. Génération du PDF...`);
+      const totalRev = exportData.reduce((sum, r) => sum + Number(r.revenue), 0);
+      const totalExp = exportData.reduce((sum, r) => sum + (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)), 0);
+      const totalNetVal = exportData.reduce((sum, r) => sum + Number(r.net_to_deposit), 0);
+
+      const doc = new jsPDF();
+      
+      doc.setFillColor(16, 185, 129);
+      doc.rect(0, 0, 210, 45, 'F');
       
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text('REX TRANSPORT - RAPPORT', 15, 25);
+      doc.setFontSize(26);
+      doc.text('PRODUCTION REX ERP', 14, 22);
       
       doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Type: ${periodLabel} | Généré le: ${new Date().toLocaleString('fr-FR')}`, 15, 33);
+      doc.text('RAPPORT DE PERFORMANCE - PERIODE : ' + period, 14, 32);
+      doc.text('GENERE LE : ' + new Date().toLocaleDateString('fr-FR'), 14, 38);
       
-      // Totals Box
-      doc.setFillColor(245, 245, 245);
-      doc.roundedRect(15, 50, 180, 25, 3, 3, 'F');
       doc.setTextColor(50, 50, 50);
-      doc.setFontSize(10);
-      doc.text('RECETTE TOTALE', 25, 60);
-      doc.text('TOTAL CHARGES', 85, 60);
-      doc.text('NET À VERSER', 145, 60);
+      doc.setFontSize(14);
+      doc.text('SYNTHESE FINANCIERE', 14, 60);
       
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${totalRevenue.toLocaleString()} XAF`, 25, 68);
+      doc.setDrawColor(230, 230, 230);
+      doc.line(14, 63, 196, 63);
+      
+      doc.setFontSize(11);
+      doc.text('Nombre de voyages : ' + exportData.length, 14, 72);
+      doc.text('Recette Brut Totale : ' + totalRev + ' XAF', 14, 80);
+      
       doc.setTextColor(220, 38, 38);
-      doc.text(`${totalExpenses.toLocaleString()} XAF`, 85, 68);
-      doc.setTextColor(16, 185, 129);
-      doc.text(`${totalNet.toLocaleString()} XAF`, 145, 68);
+      doc.text('Total des Charges : ' + totalExp + ' XAF', 14, 88);
+      
+      doc.setTextColor(5, 150, 105);
+      doc.setFontSize(12);
+      doc.text('NET TOTAL A VERSER : ' + totalNetVal + ' XAF', 14, 98);
 
-      // Table
-      const tableColumn = ["Date", "Véhicule", "Chauffeur", "Recette", "Net", "Statut"];
-      const tableRows = filteredRecords.map(r => [
-        new Date(r.date).toLocaleDateString('fr-FR'),
-        r.immatriculation,
-        r.driver_name,
-        Number(r.revenue).toLocaleString(),
-        Number(r.net_to_deposit).toLocaleString(),
-        r.status
-      ]);
-
-      autoTable(doc, {
-        startY: 85,
-        head: [tableColumn],
-        body: tableRows,
-        theme: 'grid',
-        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 8, cellPadding: 2.5 },
-        columnStyles: {
-          3: { halign: 'right' },
-          4: { halign: 'right', fontStyle: 'bold' }
-        }
+      const tableColumn = ["ID", "Date", "Vehicule", "Chauffeur", "Recette", "Charges", "Net"];
+      const tableRows = exportData.map((r, i) => {
+        const expenses = (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others));
+        return [
+          (exportData.length - i).toString(),
+          r.date,
+          r.immatriculation,
+          r.driver_name,
+          r.revenue.toString(),
+          expenses.toString(),
+          r.net_to_deposit.toString()
+        ];
       });
 
-      doc.save(`Rex_Rapport_${periodLabel}_${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('Rapport PDF généré');
-    } catch (err) {
-      toast.error('Erreur PDF');
+      autoTable(doc, {
+        startY: 110,
+        head: [tableColumn],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: {
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right', fontStyle: 'bold' }
+        },
+        alternateRowStyles: { fillColor: [245, 250, 245] }
+      });
+
+      // Footer
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Page ${i} sur ${pageCount} - Système Production Rex - Document Confidentiel`, 105, 290, { align: 'center' });
+      }
+
+      console.log('[REX-PDF] Génération terminée avec succès.');
+      doc.save(`Rex_Rapport_Officiel_${period}_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('Rapport PDF généré avec les données réelles de la base');
+    } catch (err: any) {
+      console.error('[REX-PDF] Erreur fatale lors de la génération PDF:', err);
+      toast.error('Erreur lors de la génération du PDF', { description: err.message });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-foreground uppercase">Analyse & Rapports</h2>
-          <p className="text-muted-foreground mt-1 font-bold">Consultez vos performances financières par période.</p>
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Rapports Financiers</h2>
+          <p className="text-muted-foreground mt-1 font-bold">Analyse des performances et exports comptables.</p>
         </div>
-        <Button onClick={exportPDF} className="bg-primary hover:bg-primary/90 text-white shadow-2xl shadow-primary/20 rounded-[2rem] h-16 px-10 font-black text-lg transition-all hover:scale-105">
-          <FileDown className="mr-3 h-6 w-6" />Exporter le Rapport
+        <Button onClick={exportPDF} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-black transition-all hover:-translate-y-0.5">
+          <FileDown className="mr-3 h-5 w-5" />Exporter Rapport PDF
         </Button>
       </div>
 
       {/* Sélecteur de Période Premium */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="bg-white p-1.5 rounded-[1.25rem] shadow-sm border-2 border-border flex flex-wrap gap-1.5">
         {([
-          { id: 'DAILY', label: 'Journalier', icon: Calendar },
-          { id: 'WEEKLY', label: 'Hebdomadaire', icon: TrendingUp },
-          { id: 'MONTHLY', label: 'Mensuel', icon: BarChart3 },
-          { id: 'YEARLY', label: 'Annuel', icon: PieChart },
+          { id: 'DAILY', label: 'Journalier', icon: Clock },
+          { id: 'WEEKLY', label: 'Hebdomadaire', icon: BarChart3 },
+          { id: 'MONTHLY', label: 'Mensuel', icon: Calendar },
+          { id: 'YEARLY', label: 'Annuel', icon: TrendingUp },
           { id: 'CUSTOM', label: 'Personnalisé', icon: Filter },
-        ] as const).map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => setPeriod(id)}
+        ] as const).map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setPeriod(p.id)}
             className={cn(
-              "flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all shadow-sm",
-              period === id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-transparent bg-white hover:border-border"
-            )}>
-            <Icon className={cn("h-8 w-8 mb-3", period === id ? "text-primary" : "text-muted-foreground")} />
-            <span className={cn("text-xs font-black uppercase tracking-widest", period === id ? "text-primary" : "text-muted-foreground")}>{label}</span>
+              "flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all",
+              period === p.id 
+                ? "bg-primary text-white shadow-md shadow-primary/20" 
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <p.icon className="h-3.5 w-3.5" />
+            {p.label}
           </button>
         ))}
       </div>
 
       {period === 'CUSTOM' && (
-        <Card className="bg-white border-border shadow-xl rounded-[2.5rem] animate-in slide-in-from-top-4 duration-500">
-          <CardContent className="p-8">
-            <div className="flex flex-col md:flex-row gap-8 items-end">
+        <Card className="bg-white border-border shadow-sm rounded-3xl animate-in zoom-in-95 duration-200">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row gap-6 items-end">
               <div className="space-y-2 flex-1">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date de début</Label>
+                <Label className="text-foreground text-xs font-black uppercase tracking-widest ml-1">Date début</Label>
                 <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
               </div>
               <div className="space-y-2 flex-1">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date de fin</Label>
+                <Label className="text-foreground text-xs font-black uppercase tracking-widest ml-1">Date fin</Label>
                 <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
               </div>
-              <Button onClick={fetchReports} className="bg-foreground text-white h-12 px-10 rounded-xl font-black shadow-lg">Calculer</Button>
+              <Button onClick={fetchReports} className="bg-foreground text-white h-12 px-8 rounded-xl font-black">Appliquer</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Résumé des Totaux */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-        <Card className="bg-white border-border shadow-lg rounded-[2.5rem] p-8 border-l-[12px] border-l-primary">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Recette Brut Totale</p>
-          <p className="text-4xl font-black text-foreground">{totalRevenue.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">XAF</span></p>
+      {/* Résumé Financier */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <Card className="bg-white border-border shadow-sm rounded-xl p-5 border-l-4 border-l-primary">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Recette Brut</p>
+              <h3 className="text-xl font-black text-foreground">{totalRevenue.toLocaleString()} <span className="text-xs">XAF</span></h3>
+            </div>
+            <div className="bg-primary/10 p-2 rounded-lg text-primary"><TrendingUp className="h-5 w-5" /></div>
+          </div>
         </Card>
-        <Card className="bg-white border-border shadow-lg rounded-[2.5rem] p-8 border-l-[12px] border-l-destructive">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Total Dépenses</p>
-          <p className="text-4xl font-black text-destructive">{totalExpenses.toLocaleString()} <span className="text-sm font-bold text-muted-foreground">XAF</span></p>
+        <Card className="bg-white border-border shadow-sm rounded-xl p-5 border-l-4 border-l-destructive">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Total Charges</p>
+              <h3 className="text-xl font-black text-foreground">{totalExpenses.toLocaleString()} <span className="text-xs">XAF</span></h3>
+            </div>
+            <div className="bg-destructive/10 p-2 rounded-lg text-destructive"><TrendingDown className="h-5 w-5" /></div>
+          </div>
         </Card>
-        <Card className="bg-primary text-white shadow-2xl rounded-[2.5rem] p-8">
-          <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-2">Net Total à Verser</p>
-          <p className="text-4xl font-black">{totalNet.toLocaleString()} <span className="text-sm font-bold text-white/60">XAF</span></p>
+        <Card className="bg-primary text-white shadow-lg shadow-primary/20 rounded-xl p-5">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-1.5">Net à Verser Total</p>
+              <h3 className="text-xl font-black">{totalNet.toLocaleString()} <span className="text-xs">XAF</span></h3>
+            </div>
+            <div className="bg-white/20 p-2 rounded-lg"><FileText className="h-5 w-5" /></div>
+          </div>
         </Card>
       </div>
 
-      <Card className="bg-white border-border shadow-sm rounded-[2.5rem] overflow-hidden">
-        <CardHeader className="p-8 border-b border-border/50 bg-secondary/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <CardTitle className="text-xl font-black">Historique des données</CardTitle>
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} 
-              className="pl-12 bg-white border-border rounded-2xl h-12 shadow-sm font-bold" />
+      {/* Tableau des données */}
+      <Card className="bg-white border-border shadow-sm rounded-[2.5rem] overflow-hidden border-2">
+        <CardHeader className="bg-secondary/10 p-8 border-b border-border/50">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <CardTitle className="text-xl font-black">Historique {period}</CardTitle>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} 
+                className="pl-12 bg-white border-border rounded-xl h-12 font-bold shadow-sm" />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-             <div className="p-12 space-y-4">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-2xl" />)}
-             </div>
+            <div className="p-8 space-y-4">
+               <Skeleton className="h-16 w-full rounded-2xl" />
+               <Skeleton className="h-16 w-full rounded-2xl" />
+            </div>
+          ) : filteredRecords.length === 0 ? (
+            <div className="text-center py-24 text-muted-foreground">
+              <FileText className="mx-auto h-16 w-16 mb-4 opacity-5" />
+              <p className="font-black text-xl">Aucune donnée sur cette période.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left border-collapse">
-                <thead className="bg-secondary/30 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">
+                <thead className="text-[10px] font-black uppercase tracking-widest bg-secondary/30 text-muted-foreground border-b border-border">
                   <tr>
                     <th className="px-8 py-5">Date</th>
                     <th className="px-8 py-5">Véhicule</th>
                     <th className="px-8 py-5">Chauffeur</th>
                     <th className="px-8 py-5 text-right">Recette</th>
-                    <th className="px-8 py-5 text-right">Net</th>
-                    <th className="px-8 py-5 text-center">Statut</th>
+                    <th className="px-8 py-5 text-right">Charges</th>
+                    <th className="px-8 py-5 text-right text-primary">Net Versé</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {filteredRecords.map((r) => (
-                    <tr key={r.id} className="hover:bg-secondary/10 transition-colors">
-                      <td className="px-8 py-6 font-bold text-muted-foreground">{new Date(r.date).toLocaleDateString('fr-FR')}</td>
+                    <tr key={r.id} className="hover:bg-secondary/20 transition-all group font-bold">
+                      <td className="px-8 py-6 text-muted-foreground">{new Date(r.date).toLocaleDateString('fr-FR')}</td>
                       <td className="px-8 py-6 font-black text-foreground">{r.immatriculation}</td>
-                      <td className="px-8 py-6 font-bold text-foreground">{r.driver_name}</td>
-                      <td className="px-8 py-6 text-right font-bold">{Number(r.revenue).toLocaleString()}</td>
-                      <td className="px-8 py-6 text-right font-black text-primary">{Number(r.net_to_deposit).toLocaleString()}</td>
-                      <td className="px-8 py-6 text-center">
-                        <span className="bg-secondary px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          {r.status}
-                        </span>
+                      <td className="px-8 py-6 text-muted-foreground">{r.driver_name}</td>
+                      <td className="px-8 py-6 text-right">{Number(r.revenue).toLocaleString()}</td>
+                      <td className="px-8 py-6 text-right text-destructive">
+                        {(Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)).toLocaleString()}
                       </td>
+                      <td className="px-8 py-6 text-right font-black text-primary bg-primary/5">{Number(r.net_to_deposit).toLocaleString()} XAF</td>
                     </tr>
                   ))}
-                  {filteredRecords.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-8 py-20 text-center text-muted-foreground font-black italic">
-                        Aucune donnée disponible pour cette période.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
+                <tfoot className="bg-secondary/40 font-black text-lg">
+                  <tr>
+                    <td colSpan={3} className="px-8 py-6 text-right uppercase tracking-tighter text-xs">TOTAUX SUR LA PÉRIODE</td>
+                    <td className="px-8 py-6 text-right">{totalRevenue.toLocaleString()}</td>
+                    <td className="px-8 py-6 text-right text-destructive">{totalExpenses.toLocaleString()}</td>
+                    <td className="px-8 py-6 text-right text-primary">{totalNet.toLocaleString()} XAF</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}

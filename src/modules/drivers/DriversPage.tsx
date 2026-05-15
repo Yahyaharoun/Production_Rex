@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { Users, Plus, X, Search, Phone, CreditCard, CheckCircle, Edit2, Loader2, Car, UserCheck } from 'lucide-react';
+import { Users, UserPlus, X, Phone, CheckCircle, Edit2, Loader2, Car, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -19,9 +20,8 @@ interface Driver {
   phone: string;
   status: DriverStatus;
   type: DriverType;
-  assigned_vehicle_id: string | null;
-  vehicles?: { immatriculation: string } | null;
-  created_at: string;
+  assigned_vehicle_id?: string;
+  vehicles?: { immatriculation: string };
 }
 
 interface Vehicle {
@@ -29,14 +29,116 @@ interface Vehicle {
   immatriculation: string;
 }
 
-const statusLabel: Record<DriverStatus, string> = { AVAILABLE: 'Disponible', ON_TRIP: 'En mission', REST: 'En repos' };
-const statusColor: Record<DriverStatus, string> = {
-  AVAILABLE: 'bg-green-100 text-green-700',
-  ON_TRIP: 'bg-blue-600 text-white shadow-md ring-2 ring-blue-200', // Bleu vif comme demandé
-  REST: 'bg-yellow-100 text-yellow-700',
+const emptyForm = {
+  name: '',
+  license_number: '',
+  phone: '',
+  status: 'AVAILABLE' as DriverStatus,
+  type: 'TITULAIRE' as DriverType,
+  assigned_vehicle_id: 'none'
 };
 
+function DriverForm({ mode, initial, vehicles, onSave, onCancel, saving }: {
+  mode: 'add' | 'edit';
+  initial: typeof emptyForm;
+  vehicles: Vehicle[];
+  onSave: (d: typeof emptyForm) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState(initial);
+  const [errors, setFormErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setForm(initial);
+    setFormErrors({});
+  }, [initial]);
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = 'Nom requis';
+    if (!form.license_number.trim()) e.license_number = 'Permis requis';
+    if (!form.phone.trim()) e.phone = 'Téléphone requis';
+    setFormErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  return (
+    <Card className="bg-white border-primary/20 shadow-xl rounded-xl mb-6 animate-in slide-in-from-top-4 duration-300 overflow-hidden">
+      <CardHeader className="bg-secondary/20 pb-4 p-6 border-b border-border/50">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-black text-foreground flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            {mode === 'add' ? 'Nouveau Chauffeur' : 'Modifier Chauffeur'}
+          </CardTitle>
+          <Button variant="ghost" size="sm" onClick={onCancel} className="hover:bg-white rounded-xl p-2 border border-border">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Nom complet *</Label>
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="bg-secondary/10 border-border rounded-xl h-11 font-bold text-sm" />
+            {errors.name && <p className="text-[10px] text-destructive font-black uppercase">{errors.name}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Numéro Permis *</Label>
+            <Input value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })}
+              className="bg-secondary/10 border-border rounded-xl h-11 font-bold text-sm" />
+            {errors.license_number && <p className="text-[10px] text-destructive font-black uppercase">{errors.license_number}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Téléphone *</Label>
+            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="bg-secondary/10 border-border rounded-xl h-11 font-bold text-sm" />
+            {errors.phone && <p className="text-[10px] text-destructive font-black uppercase">{errors.phone}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Type de contrat</Label>
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as DriverType })}
+              className="w-full rounded-xl bg-secondary/10 border border-border h-11 px-3 text-sm font-bold">
+              <option value="TITULAIRE">Titulaire</option>
+              <option value="MERCENAIRE">Mercenaire</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Véhicule</Label>
+            <select value={form.assigned_vehicle_id} onChange={(e) => setForm({ ...form, assigned_vehicle_id: e.target.value })}
+              className="w-full rounded-xl bg-secondary/10 border border-border h-11 px-3 text-sm font-bold">
+              <option value="none">Aucun</option>
+              {vehicles.map(v => <option key={v.id} value={v.id}>{v.immatriculation}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Statut</Label>
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as DriverStatus })}
+              className="w-full rounded-xl bg-secondary/10 border border-border h-11 px-3 text-sm font-bold">
+              <option value="AVAILABLE">Disponible</option>
+              <option value="ON_TRIP">En mission</option>
+              <option value="REST">En repos</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-border/50">
+          <Button variant="outline" onClick={onCancel} className="rounded-xl font-bold h-10 px-6 border-border">Annuler</Button>
+          <Button onClick={() => { if (validate()) onSave(form); }} className="bg-primary hover:bg-primary/90 text-white rounded-xl font-black h-10 px-8 shadow-md" disabled={saving}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+            Sauvegarder
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DriversPage() {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'PDG';
+  const isChef = user?.role === 'CHEF_AGENCE';
+  const isAdminOrChef = isAdmin || isChef;
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,21 +148,12 @@ export default function DriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [search, setSearch] = useState('');
 
-  // États de formulaire séparés pour éviter les problèmes de focus/saisie
-  const [fName, setFName] = useState('');
-  const [fLicense, setFLicense] = useState('');
-  const [fPhone, setFPhone] = useState('');
-  const [fStatus, setFStatus] = useState<DriverStatus>('AVAILABLE');
-  const [fType, setFType] = useState<DriverType>('TITULAIRE');
-  const [fVehicle, setFVehicle] = useState<string>('none');
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
   const fetchData = async () => {
     setLoading(true);
     try {
       const [driversRes, vehiclesRes] = await Promise.all([
-        supabase.from('drivers').select('*, vehicles(immatriculation)').order('created_at', { ascending: false }),
-        supabase.from('vehicles').select('id, immatriculation')
+        supabase.from('drivers').select('*, vehicles(immatriculation)').order('name'),
+        supabase.from('vehicles').select('id, immatriculation').order('immatriculation')
       ]);
       if (driversRes.error) throw driversRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
@@ -75,45 +168,21 @@ export default function DriversPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const resetForm = () => {
-    setFName(''); setFLicense(''); setFPhone('');
-    setFStatus('AVAILABLE'); setFType('TITULAIRE'); setFVehicle('none');
-    setFormErrors({});
-  };
-
-  const validate = () => {
-    const errors: Record<string, string> = {};
-    if (!fName.trim()) errors.name = 'Nom requis';
-    if (!fLicense.trim()) errors.license = 'N° Permis requis';
-    if (!fPhone.trim()) errors.phone = 'Téléphone requis';
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSave = async () => {
-    if (!validate()) return;
+  const handleSave = async (d: typeof emptyForm) => {
     setSaving(true);
     try {
       const payload = {
-        name: fName.trim(),
-        license_number: fLicense.trim(),
-        phone: fPhone.trim(),
-        status: fStatus,
-        type: fType,
-        assigned_vehicle_id: fVehicle === 'none' ? null : fVehicle
+        name: d.name,
+        license_number: d.license_number,
+        phone: d.phone,
+        status: d.status,
+        type: d.type,
+        assigned_vehicle_id: d.assigned_vehicle_id === 'none' ? null : d.assigned_vehicle_id
       };
-
-      let res;
-      if (editingDriver) {
-        res = await supabase.from('drivers').update(payload).eq('id', editingDriver.id);
-      } else {
-        res = await supabase.from('drivers').insert(payload);
-      }
-
-      if (res.error) throw res.error;
-
-      toast.success(editingDriver ? 'Mis à jour' : 'Enregistré');
-      setShowForm(false); setEditingDriver(null); resetForm();
+      const { error } = await supabase.from('drivers').insert(payload);
+      if (error) throw error;
+      toast.success('Chauffeur ajouté');
+      setShowForm(false);
       fetchData();
     } catch (err: any) {
       toast.error('Erreur', { description: err.message });
@@ -122,191 +191,173 @@ export default function DriversPage() {
     }
   };
 
-  const openEdit = (driver: Driver) => {
-    setEditingDriver(driver);
-    setFName(driver.name);
-    setFLicense(driver.license_number);
-    setFPhone(driver.phone);
-    setFStatus(driver.status);
-    setFType(driver.type || 'TITULAIRE');
-    setFVehicle(driver.assigned_vehicle_id || 'none');
-    setFormErrors({});
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleUpdate = async (d: typeof emptyForm) => {
+    if (!editingDriver) return;
+    setSaving(true);
+    try {
+      const payload = {
+        name: d.name,
+        license_number: d.license_number,
+        phone: d.phone,
+        status: d.status,
+        type: d.type,
+        assigned_vehicle_id: d.assigned_vehicle_id === 'none' ? null : d.assigned_vehicle_id
+      };
+      const { error } = await supabase.from('drivers').update(payload).eq('id', editingDriver.id);
+      if (error) throw error;
+      toast.success('Chauffeur mis à jour');
+      setEditingDriver(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error('Erreur', { description: err.message });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const filtered = drivers.filter((d) =>
-    d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.license_number.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Voulez-vous vraiment supprimer ce chauffeur ?')) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('drivers').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Chauffeur supprimé');
+      fetchData();
+    } catch (err: any) {
+      toast.error('Erreur', { description: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = drivers.filter(d => d.name.toLowerCase().includes(search.toLowerCase()) || d.phone.includes(search));
+
+  const statusColor = {
+    AVAILABLE: 'bg-green-100 text-green-700',
+    ON_TRIP: 'bg-blue-600 text-white shadow-md shadow-blue-200',
+    REST: 'bg-gray-100 text-gray-600'
+  };
+
+  const statusLabel = {
+    AVAILABLE: 'Disponible',
+    ON_TRIP: 'En mission',
+    REST: 'En repos'
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-foreground uppercase">Personnel de Conduite</h2>
-          <p className="text-muted-foreground mt-1 font-bold">Gérez vos chauffeurs titulaires et mercenaires.</p>
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Répertoire Chauffeurs</h2>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Gestion des contrats et missions</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 rounded-2xl h-14 px-8 font-black transition-all hover:scale-105"
-          onClick={() => { setShowForm(!showForm); setEditingDriver(null); resetForm(); }}>
-          {showForm ? <X className="mr-2 h-6 w-6" /> : <Plus className="mr-2 h-6 w-6" />}
-          {showForm ? 'Annuler' : 'Nouveau chauffeur'}
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setShowForm(true); setEditingDriver(null); }} className="bg-primary hover:bg-primary/90 text-white rounded-xl h-11 px-6 font-black shadow-lg">
+            <UserPlus className="mr-2 h-4 w-4" /> Ajouter Chauffeur
+          </Button>
+        )}
       </div>
 
-      {showForm && (
-        <Card className="bg-white border-primary/20 shadow-2xl rounded-[2rem] overflow-hidden animate-in slide-in-from-top-6 duration-500">
-          <CardHeader className="bg-secondary/10 border-b border-border/50 p-8">
-            <CardTitle className="text-2xl font-black flex items-center gap-3">
-              <UserCheck className="h-7 w-7 text-primary" />
-              {editingDriver ? `Modifier ${editingDriver.name}` : 'Enregistrer un nouveau chauffeur'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Nom Complet</Label>
-                <Input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Ex: Jean Essomba" className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
-                {formErrors.name && <p className="text-[10px] text-destructive font-black uppercase">{formErrors.name}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Numéro de Permis</Label>
-                <Input value={fLicense} onChange={(e) => setFLicense(e.target.value)} placeholder="Ex: CM-12345" className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
-                {formErrors.license && <p className="text-[10px] text-destructive font-black uppercase">{formErrors.license}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Téléphone</Label>
-                <Input value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="+237 ..." className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
-                {formErrors.phone && <p className="text-[10px] text-destructive font-black uppercase">{formErrors.phone}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Type de contrat</Label>
-                <select value={fType} onChange={(e) => setFType(e.target.value as any)} className="w-full bg-secondary/20 border-border rounded-xl h-12 px-4 font-bold text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                  <option value="TITULAIRE">Titulaire</option>
-                  <option value="MERCENAIRE">Mercenaire</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Véhicule assigné</Label>
-                <select value={fVehicle} onChange={(e) => setFVehicle(e.target.value)} className="w-full bg-secondary/20 border-border rounded-xl h-12 px-4 font-bold text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                  <option value="none">Aucun véhicule</option>
-                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.immatriculation}</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Statut actuel</Label>
-                <select value={fStatus} onChange={(e) => setFStatus(e.target.value as any)} className="w-full bg-secondary/20 border-border rounded-xl h-12 px-4 font-bold text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                  <option value="AVAILABLE">Disponible</option>
-                  <option value="ON_TRIP">En mission</option>
-                  <option value="REST">En repos</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-4 mt-10 pt-8 border-t border-border/50">
-              <Button variant="outline" onClick={() => { setShowForm(false); setEditingDriver(null); resetForm(); }} className="h-12 px-8 rounded-xl font-bold">Annuler</Button>
-              <Button onClick={handleSave} className="h-12 px-12 rounded-xl bg-primary text-white font-black shadow-lg shadow-primary/20" disabled={saving}>
-                {saving ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <CheckCircle className="h-5 w-5 mr-2" />}
-                {editingDriver ? 'Enregistrer les modifications' : 'Créer le profil chauffeur'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {showForm && !editingDriver && <DriverForm mode="add" initial={emptyForm} vehicles={vehicles} onSave={handleSave} onCancel={() => setShowForm(false)} saving={saving} />}
+      {editingDriver && <DriverForm mode="edit" vehicles={vehicles} onSave={handleUpdate} onCancel={() => setEditingDriver(null)} saving={saving}
+        initial={{
+          name: editingDriver.name,
+          license_number: editingDriver.license_number,
+          phone: editingDriver.phone,
+          status: editingDriver.status,
+          type: editingDriver.type || 'TITULAIRE',
+          assigned_vehicle_id: editingDriver.assigned_vehicle_id || 'none'
+        }}
+      />}
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-        <Input placeholder="Rechercher par nom ou permis..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-12 bg-white border-border rounded-2xl h-14 shadow-sm font-bold" />
+      <div className="relative max-w-sm">
+        <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-white border-border rounded-xl h-10 shadow-sm font-bold text-sm" />
       </div>
 
       {loading ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-56 rounded-[2rem]" />)}
+        <div className="grid gap-6 md:grid-cols-3">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((d) => (
-            <Card key={d.id} className="bg-white border-border hover:border-primary/40 transition-all shadow-sm hover:shadow-2xl rounded-[2rem] overflow-hidden group">
-              <div className="p-6">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="h-16 w-16 rounded-2xl bg-secondary flex items-center justify-center font-black text-primary text-2xl border border-border shadow-inner">
-                    {d.name.substring(0, 2).toUpperCase()}
+          {filtered.map(driver => (
+            <Card key={driver.id} className="bg-white border-border hover:border-primary/40 transition-all shadow-sm rounded-xl overflow-hidden group border-2">
+              <CardHeader className="p-4 bg-secondary/5 border-b border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-white border border-border flex items-center justify-center font-black text-primary text-sm group-hover:scale-110 transition-transform">
+                    {driver.name.substring(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-black text-foreground truncate">{d.name}</h3>
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{d.type || 'TITULAIRE'}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between items-center bg-secondary/20 p-3 rounded-xl border border-border/50">
-                    <span className="text-[10px] font-black text-muted-foreground uppercase">Véhicule</span>
-                    <span className="text-xs font-black text-foreground">{d.vehicles?.immatriculation || 'NON ASSIGNÉ'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest", statusColor[d.status])}>
-                      {statusLabel[d.status]}
+                    <CardTitle className="text-foreground text-sm font-black truncate">{driver.name}</CardTitle>
+                    <span className={cn("text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tighter", driver.type === 'TITULAIRE' ? "bg-primary text-white" : "bg-orange-500 text-white")}>
+                      {driver.type}
                     </span>
-                    <span className="text-xs font-bold flex items-center gap-2"><Phone className="h-3 w-3 text-primary" />{d.phone}</span>
                   </div>
                 </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={() => setSelectedDriver(d)} className="flex-1 bg-foreground text-white rounded-xl h-11 font-black">Détails</Button>
-                  <Button variant="outline" onClick={() => openEdit(d)} className="w-11 h-11 p-0 rounded-xl border-border hover:bg-secondary"><Edit2 className="h-4 w-4" /></Button>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className={cn("text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest", statusColor[driver.status])}>
+                    {statusLabel[driver.status]}
+                  </span>
+                  <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                    <Phone className="h-3 w-3" /> {driver.phone}
+                  </span>
                 </div>
-              </div>
+                <div className="bg-secondary/20 p-2 rounded-lg border border-border/50 flex items-center gap-2">
+                  <Car className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <p className="text-[8px] font-black text-muted-foreground uppercase">Véhicule assigné</p>
+                    <p className="text-xs font-black text-foreground">{driver.vehicles?.immatriculation || 'AUCUN'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button className="flex-1 bg-foreground text-white rounded-lg h-9 font-black text-xs" onClick={() => setSelectedDriver(driver)}>Détails</Button>
+                  {isAdminOrChef && (
+                    <>
+                      <Button variant="outline" className="border-border rounded-lg h-9 w-9 p-0" onClick={() => setEditingDriver(driver)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" className="border-border text-destructive hover:bg-destructive/10 rounded-lg h-9 w-9 p-0" onClick={() => handleDelete(driver.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
             </Card>
           ))}
         </div>
       )}
 
       {selectedDriver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-          <Card className="w-full max-w-lg bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border-none">
-            <div className="bg-primary p-10 text-white relative">
-              <button onClick={() => setSelectedDriver(null)} className="absolute top-6 right-6 p-2 bg-white/20 rounded-2xl hover:bg-white/30 transition-colors"><X className="h-6 w-6" /></button>
-              <div className="flex items-center gap-6">
-                <div className="h-24 w-24 rounded-[2rem] bg-white text-primary flex items-center justify-center text-4xl font-black shadow-2xl">
-                  {selectedDriver.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="text-3xl font-black leading-tight">{selectedDriver.name}</h3>
-                  <div className="flex gap-2 mt-2">
-                    <span className="bg-white/20 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{selectedDriver.type}</span>
-                    <span className={cn("px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white text-primary")}>
-                      {statusLabel[selectedDriver.status]}
-                    </span>
-                  </div>
-                </div>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/60 backdrop-blur px-4">
+          <Card className="bg-white border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+            <div className="h-20 bg-primary/10 relative">
+              <Button variant="ghost" className="absolute right-2 top-2 rounded-full h-8 w-8 p-0" onClick={() => setSelectedDriver(null)}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="p-10 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-secondary/30 p-6 rounded-[2rem] border border-border/50">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Immatriculation</p>
-                  <p className="text-xl font-black text-foreground flex items-center gap-2">
-                    <Car className="h-6 w-6 text-primary" />
-                    {selectedDriver.vehicles?.immatriculation || 'AUCUNE'}
-                  </p>
-                </div>
-                <div className="bg-secondary/30 p-6 rounded-[2rem] border border-border/50">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Numéro Permis</p>
-                  <p className="text-xl font-black text-foreground flex items-center gap-2">
-                    <CreditCard className="h-6 w-6 text-primary" />
-                    {selectedDriver.license_number}
-                  </p>
-                </div>
+            <div className="px-6 pb-6 -mt-8 relative">
+              <div className="h-16 w-16 rounded-2xl bg-white border-2 border-primary shadow-xl flex items-center justify-center font-black text-primary text-xl mb-4">
+                {selectedDriver.name.substring(0, 2).toUpperCase()}
               </div>
-              <div className="bg-secondary/30 p-6 rounded-[2rem] border border-border/50">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">Contact Direct</p>
-                <p className="text-2xl font-black text-foreground flex items-center gap-3">
-                  <Phone className="h-7 w-7 text-primary" />
-                  {selectedDriver.phone}
-                </p>
-              </div>
-              <div className="flex gap-4 pt-4">
-                <Button className="flex-1 h-14 bg-foreground text-white rounded-2xl font-black shadow-xl" onClick={() => setSelectedDriver(null)}>Fermer</Button>
-                <Button variant="outline" className="flex-1 h-14 border-border rounded-2xl font-black" onClick={() => { const d = selectedDriver; setSelectedDriver(null); openEdit(d); }}>Modifier</Button>
+              <h3 className="text-xl font-black text-foreground">{selectedDriver.name}</h3>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Permis: {selectedDriver.license_number}</p>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between text-xs py-2 border-b border-border/50">
+                  <span className="text-muted-foreground font-bold">Type Contrat</span>
+                  <span className="font-black text-foreground">{selectedDriver.type}</span>
+                </div>
+                <div className="flex justify-between text-xs py-2 border-b border-border/50">
+                  <span className="text-muted-foreground font-bold">Téléphone</span>
+                  <span className="font-black text-foreground">{selectedDriver.phone}</span>
+                </div>
+                <div className="flex justify-between text-xs py-2 border-b border-border/50">
+                  <span className="text-muted-foreground font-bold">Véhicule</span>
+                  <span className="font-black text-primary">{selectedDriver.vehicles?.immatriculation || 'NON ASSIGNÉ'}</span>
+                </div>
               </div>
             </div>
           </Card>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Bus, Users, Banknote, MapPin, TrendingUp, AlertCircle, CheckCircle, ArrowUpRight, ArrowDownRight, Loader2, Calendar, Database } from "lucide-react";
+import { Button } from '../../components/ui/button';
+import { Bus, Banknote, MapPin, TrendingUp, CheckCircle, ArrowUpRight, Loader2, Calendar, Database } from "lucide-react";
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -112,7 +113,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-4xl font-black tracking-tighter text-foreground">Dashboard</h2>
+            <h2 className="text-2xl font-black tracking-tighter text-foreground">Dashboard</h2>
             {refreshing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
           </div>
           <p className="text-muted-foreground mt-1 font-bold flex items-center gap-2">
@@ -127,50 +128,50 @@ export default function DashboardPage() {
 
       {/* KPIs Principaux */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-white border-border shadow-sm rounded-[2rem] hover:shadow-xl transition-all border-l-8 border-l-primary">
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Recette Brut</CardTitle>
             <div className="p-2 bg-primary/10 rounded-xl text-primary"><Banknote className="h-5 w-5" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-foreground">{data.revenue.toLocaleString()} <span className="text-sm">XAF</span></div>
+            <div className="text-xl font-black text-foreground">{data.revenue.toLocaleString()} <span className="text-xs">XAF</span></div>
             <div className="flex items-center gap-1 mt-3 text-[10px] text-primary font-black uppercase tracking-wider">
               <CheckCircle className="h-3 w-3" /> Données réelles DB
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-border shadow-sm rounded-[2rem] hover:shadow-xl transition-all border-l-8 border-l-destructive">
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-destructive">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Total Charges</CardTitle>
             <div className="p-2 bg-destructive/10 rounded-xl text-destructive"><TrendingUp className="h-5 w-5" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-foreground">{data.expenses.toLocaleString()} <span className="text-sm">XAF</span></div>
+            <div className="text-xl font-black text-foreground">{data.expenses.toLocaleString()} <span className="text-xs">XAF</span></div>
             <p className="text-[10px] text-muted-foreground font-bold mt-3 uppercase">Carburant, Péage, Maintenance</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-border shadow-sm rounded-[2rem] hover:shadow-xl transition-all border-l-8 border-l-blue-600">
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-blue-600">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Net à Verser</CardTitle>
             <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600"><CheckCircle className="h-5 w-5" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-blue-600">{data.net.toLocaleString()} <span className="text-sm">XAF</span></div>
+            <div className="text-xl font-black text-blue-600">{data.net.toLocaleString()} <span className="text-xs">XAF</span></div>
             <div className="flex items-center gap-1 mt-3 text-[10px] text-blue-600 font-black uppercase tracking-wider">
               <ArrowUpRight className="h-3 w-3" /> {data.todayEntries.length} Voyages aujourd'hui
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-border shadow-sm rounded-[2rem] hover:shadow-xl transition-all border-l-8 border-l-yellow-500">
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-yellow-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Disponibilité</CardTitle>
             <div className="p-2 bg-yellow-500/10 rounded-xl text-yellow-600"><Bus className="h-5 w-5" /></div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-foreground">{data.vehiclesActive} <span className="text-sm font-medium text-muted-foreground">/ {data.vehiclesTotal} bus</span></div>
+            <div className="text-xl font-black text-foreground">{data.vehiclesActive} <span className="text-xs font-medium text-muted-foreground">/ {data.vehiclesTotal} bus</span></div>
             <p className="text-[10px] text-yellow-600 font-black mt-3 uppercase tracking-wider">{data.driversAvailable} Chauffeurs dispo.</p>
           </CardContent>
         </Card>
@@ -275,9 +276,9 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {data.todayEntries.map((e) => (
+                {data.todayEntries.map((e, i) => (
                   <tr key={e.id} className="hover:bg-secondary/20 transition-colors">
-                    <td className="px-8 py-5 font-mono text-[10px] text-muted-foreground truncate max-w-[120px]">{e.id}</td>
+                    <td className="px-8 py-5 font-black text-muted-foreground text-xs">Voyage #{data.todayEntries.length - i}</td>
                     <td className="px-8 py-5 font-black text-foreground">{e.immatriculation}</td>
                     <td className="px-8 py-5 font-bold text-muted-foreground">{e.driver_name}</td>
                     <td className="px-8 py-5 text-right font-bold">{Number(e.revenue).toLocaleString()}</td>

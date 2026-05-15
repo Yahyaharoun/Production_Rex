@@ -5,6 +5,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 import { lazy } from 'react';
 
 const LoginPage = lazy(() => import('../modules/auth/LoginPage'));
+const RegisterPage = lazy(() => import('../modules/auth/RegisterPage'));
 const DashboardPage = lazy(() => import('../modules/dashboard/DashboardPage'));
 const VehiclesPage = lazy(() => import('../modules/vehicles/VehiclesPage'));
 const DriversPage = lazy(() => import('../modules/drivers/DriversPage'));
@@ -22,6 +23,7 @@ export const router = createHashRouter([
     element: <AuthLayout />,
     children: [
       { index: true, element: <LoginPage /> },
+      { path: 'register', element: <RegisterPage /> },
     ],
   },
   {
@@ -37,10 +39,33 @@ export const router = createHashRouter([
           { path: 'vehicles', element: <VehiclesPage /> },
           { path: 'drivers', element: <DriversPage /> },
           { path: 'production', element: <ProductionPage /> },
-          { path: 'reports', element: <ReportsPage /> },
-          { path: 'users', element: <UsersPage /> },
         ],
       },
+      // Routes restreintes
+      {
+        element: <ProtectedRoute requiredRole={['PDG', 'CHEF_AGENCE']} />,
+        path: 'app',
+        children: [
+          {
+            element: <MainLayout />,
+            children: [
+              { path: 'reports', element: <ReportsPage /> },
+            ]
+          }
+        ]
+      },
+      {
+        element: <ProtectedRoute requiredRole="PDG" />,
+        path: 'app',
+        children: [
+          {
+            element: <MainLayout />,
+            children: [
+              { path: 'users', element: <UsersPage /> },
+            ]
+          }
+        ]
+      }
     ],
   },
   {

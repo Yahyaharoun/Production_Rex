@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { User, Lock, Loader2 } from 'lucide-react';
+import { Label } from '../../components/ui/label';
+import { Mail, Lock, Loader2, LogIn, Bus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const { login } = useAuthStore();
@@ -24,11 +24,29 @@ export default function LoginPage() {
     }
     
     setLoading(true);
+    console.log('[REX-AUTH] Tentative de connexion pour:', email);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+      console.log('[REX-AUTH] Authentification Supabase réussie, récupération du profil...');
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('[REX-AUTH] Erreur base de données (profil):', profileError);
+        toast.error('Erreur Base de Données', { description: profileError.message || 'Problème de schéma ou permissions.' });
+      }
+
+      if (profile && profile.is_active === false) {
+        console.warn('[REX-AUTH] Tentative de connexion sur un compte désactivé:', email);
+        throw new Error('Votre compte a été désactivé. Veuillez contacter la direction.');
+      }
+      
+      console.log('[REX-AUTH] Profil chargé avec succès. Rôle:', profile?.role);
       
       login({
         id: data.user.id,
@@ -39,14 +57,12 @@ export default function LoginPage() {
         isActive: profile?.is_active ?? true
       }, data.session.access_token);
 
-      toast.success('Connexion réussie', { description: 'Bienvenue sur Rex Transport' });
+      toast.success('Connexion réussie', { description: 'Bienvenue sur Production Rex' });
       navigate('/app/dashboard');
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('[REX-AUTH] Erreur globale de login:', err.message);
       toast.error('Échec de la connexion', { 
-        description: err.message === 'Invalid login credentials' 
-          ? 'Identifiants incorrects.' 
-          : `Erreur: ${err.message}` 
+        description: err.message || 'Identifiants incorrects ou problème réseau.' 
       });
     } finally {
       setLoading(false);
@@ -54,97 +70,55 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full animate-in fade-in zoom-in-95 duration-500">
-      <div className="mb-8">
-        <h2 className="text-[2rem] font-bold text-foreground mb-2">Sign in</h2>
-        <p className="text-xs text-muted-foreground font-medium">
-          Entrez vos identifiants pour accéder au système sécurisé de Rex Transport.
-        </p>
-      </div>
-
-      <form onSubmit={handleLogin} className="space-y-4">
-        {/* Email Field */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <User className="h-5 w-5 text-muted-foreground" />
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-sm space-y-6 bg-white p-8 rounded-[2rem] shadow-2xl border border-border animate-in fade-in zoom-in duration-500">
+        <div className="space-y-2 text-center">
+          <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-2xl mb-2">
+            <Bus className="h-8 w-8 text-primary" />
           </div>
-          <Input 
-            type="email" 
-            placeholder="User Name (Email)" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="pl-12 bg-slate-50 border-none h-14 rounded-xl text-sm font-semibold shadow-inner focus-visible:ring-1 focus-visible:ring-primary/50"
-            required
-          />
+          <h1 className="text-2xl font-black tracking-tighter text-foreground">Production Rex</h1>
+          <p className="text-muted-foreground text-xs font-bold italic uppercase tracking-wider">Accès Sécurisé</p>
         </div>
 
-        {/* Password Field */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <Lock className="h-5 w-5 text-muted-foreground" />
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-[10px] font-black uppercase tracking-[0.2em] ml-1 text-muted-foreground">Email Professionnel</Label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input id="email" type="email" placeholder="nom@rex.cm" required value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-11 bg-secondary/30 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary font-bold text-sm" />
+            </div>
           </div>
-          <Input 
-            type={showPassword ? "text" : "password"} 
-            placeholder="Password" 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="pl-12 pr-20 bg-slate-50 border-none h-14 rounded-xl text-sm font-semibold shadow-inner focus-visible:ring-1 focus-visible:ring-primary/50"
-            required
-          />
-          <button 
-            type="button" 
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-0 pr-5 flex items-center text-xs font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider"
-          >
-            {showPassword ? "Hide" : "Show"}
-          </button>
-        </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-[0.2em] ml-1 text-muted-foreground">Mot de passe</Label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input id="password" type="password" required value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-11 bg-secondary/30 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary font-bold text-sm" />
+            </div>
+          </div>
 
-        {/* Remember me & Forgot Password */}
-        <div className="flex items-center justify-between mt-6 mb-6">
-          <label className="flex items-center gap-2 cursor-pointer group">
-            <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary" />
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Remember me</span>
-          </label>
-          <a href="#" className="text-xs font-bold text-primary hover:text-primary/80 transition-colors">
-            Forgot Password?
-          </a>
-        </div>
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-black shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 mt-2" disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+            Se connecter
+          </Button>
+        </form>
 
-        {/* Login Button */}
-        <Button 
-          type="submit" 
-          disabled={loading} 
-          className="w-full h-14 bg-[#1a4a6b] hover:bg-[#1a4a6b]/90 text-white rounded-xl font-bold text-sm tracking-wide shadow-lg shadow-[#1a4a6b]/20 transition-all hover:-translate-y-0.5"
-          style={{ backgroundColor: 'hsl(var(--primary))' }} // Override avec la couleur verte du thème
-        >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sign in'}
-        </Button>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-border/60"></div>
-          <span className="text-[10px] uppercase font-bold text-muted-foreground">Or</span>
-          <div className="flex-1 h-px bg-border/60"></div>
-        </div>
-
-        {/* Other Login Button */}
-        <Button 
-          type="button"
-          variant="outline"
-          onClick={() => toast.info('Bientôt disponible', { description: 'La connexion avec Google/Apple sera activée prochainement.' })}
-          className="w-full h-14 border-2 border-border/50 text-foreground rounded-xl font-bold text-sm tracking-wide hover:bg-secondary/50 transition-colors"
-        >
-          Sign in with other
-        </Button>
-
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-xs font-medium text-muted-foreground">
-            Don't have an account? <a href="#" className="text-primary font-bold hover:underline">Sign up</a>
+        <div className="text-center pt-4 border-t border-border/50 space-y-3">
+          <p className="text-xs font-bold text-muted-foreground">
+            Pas encore de compte ?{' '}
+            <Link to="/login/register" className="text-primary hover:underline font-black">
+              S'inscrire
+            </Link>
+          </p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            © 2026 Production Rex System
           </p>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
