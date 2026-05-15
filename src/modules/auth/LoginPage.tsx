@@ -1,314 +1,150 @@
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Loader2, LogIn, UserPlus, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { User, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '../../lib/supabase';
 
-// ─── Validation schemas ───────────────────────────────────────────────────────
-const loginSchema = z.object({
-  email: z.string().email({ message: 'Adresse email invalide' }),
-  password: z.string().min(6, { message: 'Minimum 6 caractères' }),
-});
-
-const signupSchema = z.object({
-  name: z.string().min(2, { message: 'Nom requis (min. 2 caractères)' }),
-  email: z.string().email({ message: 'Adresse email invalide' }),
-  password: z.string().min(6, { message: 'Minimum 6 caractères' }),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
-type SignupFormValues = z.infer<typeof signupSchema>;
-
-// ─── Logo Rex inline SVG ──────────────────────────────────────────────────────
-const RexLogo = ({ size = 52 }: { size?: number }) => (
-  <div
-    style={{ width: size, height: size }}
-    className="rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/30 ring-2 ring-accent/30"
-  >
-    <span className="text-white font-black select-none" style={{ fontSize: size * 0.5 }}>R</span>
-  </div>
-);
-
-// ─── Login form ───────────────────────────────────────────────────────────────
-function LoginForm({ onSwitchMode }: { onSwitchMode: () => void }) {
-  const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
-  const [isLoading, setIsLoading] = useState(false);
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  const { login } = useAuthStore();
+  const navigate = useNavigate();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-  });
-
-  const onSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error('Erreur', { description: 'Veuillez remplir tous les champs.' });
+      return;
+    }
+    
+    setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 1000));
-      let role: 'ADMIN' | 'CHEF_AGENCE' | 'CAISSIERE' = 'CAISSIERE';
-      if (data.email.includes('admin')) role = 'ADMIN';
-      if (data.email.includes('chef')) role = 'CHEF_AGENCE';
-      const name = role === 'ADMIN' ? 'PDG Rex' : role === 'CHEF_AGENCE' ? 'Chef Agence' : 'Caissière';
-      login({ id: '1', email: data.email, name, role, isActive: true }, 'rex-jwt-token');
-      toast.success('Connexion réussie', { description: `Bienvenue, ${name} !` });
-      navigate('/');
-    } catch {
-      toast.error('Erreur de connexion');
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+      
+      login({
+        id: data.user.id,
+        email: data.user.email!,
+        name: profile?.name || 'Utilisateur',
+        role: profile?.role || 'CHAUFFEUR',
+        agenceId: profile?.agence_id || '',
+        isActive: profile?.is_active ?? true
+      }, data.session.access_token);
+
+      toast.success('Connexion réussie', { description: 'Bienvenue sur Rex Transport' });
+      navigate('/app/dashboard');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      toast.error('Échec de la connexion', { 
+        description: err.message === 'Invalid login credentials' 
+          ? 'Identifiants incorrects.' 
+          : `Erreur: ${err.message}` 
+      });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Email */}
-      <div className="space-y-1.5">
-        <Label htmlFor="login-email" className="text-white text-sm font-medium">Adresse email</Label>
-        <Input
-          id="login-email"
-          type="email"
-          placeholder="admin@rex.cm"
-          className="bg-secondary/40 border-border text-white placeholder:text-muted-foreground focus-visible:ring-accent h-11"
-          disabled={isLoading}
-          {...register('email')}
-        />
-        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+    <div className="w-full animate-in fade-in zoom-in-95 duration-500">
+      <div className="mb-8">
+        <h2 className="text-[2rem] font-bold text-foreground mb-2">Sign in</h2>
+        <p className="text-xs text-muted-foreground font-medium">
+          Entrez vos identifiants pour accéder au système sécurisé de Rex Transport.
+        </p>
       </div>
 
-      {/* Mot de passe */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="login-password" className="text-white text-sm font-medium">Mot de passe</Label>
-          <a
-            href="#"
-            className="text-xs font-semibold text-accent hover:text-accent/80 underline underline-offset-4 transition-colors"
-            onClick={(e) => { e.preventDefault(); toast.info('Contactez votre administrateur Rex.'); }}
+      <form onSubmit={handleLogin} className="space-y-4">
+        {/* Email Field */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <User className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <Input 
+            type="email" 
+            placeholder="User Name (Email)" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="pl-12 bg-slate-50 border-none h-14 rounded-xl text-sm font-semibold shadow-inner focus-visible:ring-1 focus-visible:ring-primary/50"
+            required
+          />
+        </div>
+
+        {/* Password Field */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <Lock className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <Input 
+            type={showPassword ? "text" : "password"} 
+            placeholder="Password" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="pl-12 pr-20 bg-slate-50 border-none h-14 rounded-xl text-sm font-semibold shadow-inner focus-visible:ring-1 focus-visible:ring-primary/50"
+            required
+          />
+          <button 
+            type="button" 
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute inset-y-0 right-0 pr-5 flex items-center text-xs font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider"
           >
-            Mot de passe oublié ?
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
+
+        {/* Remember me & Forgot Password */}
+        <div className="flex items-center justify-between mt-6 mb-6">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary accent-primary" />
+            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Remember me</span>
+          </label>
+          <a href="#" className="text-xs font-bold text-primary hover:text-primary/80 transition-colors">
+            Forgot Password?
           </a>
         </div>
-        <div className="relative">
-          <Input
-            id="login-password"
-            type={showPassword ? 'text' : 'password'}
-            placeholder="••••••••"
-            className="bg-secondary/40 border-border text-white placeholder:text-muted-foreground focus-visible:ring-accent h-11 pr-10"
-            disabled={isLoading}
-            {...register('password')}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-      </div>
 
-      {/* Bouton Log In */}
-      <Button
-        type="submit"
-        id="btn-login"
-        className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12 text-base shadow-lg shadow-accent/20 transition-all active:scale-[0.98]"
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connexion...</>
-        ) : (
-          <><LogIn className="mr-2 h-5 w-5" />Log In</>
-        )}
-      </Button>
+        {/* Login Button */}
+        <Button 
+          type="submit" 
+          disabled={loading} 
+          className="w-full h-14 bg-[#1a4a6b] hover:bg-[#1a4a6b]/90 text-white rounded-xl font-bold text-sm tracking-wide shadow-lg shadow-[#1a4a6b]/20 transition-all hover:-translate-y-0.5"
+          style={{ backgroundColor: 'hsl(var(--primary))' }} // Override avec la couleur verte du thème
+        >
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sign in'}
+        </Button>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Pas encore de compte ?{' '}
-        <button type="button" onClick={onSwitchMode} className="text-accent font-semibold hover:underline">
-          Créer un compte
-        </button>
-      </p>
-    </form>
-  );
-}
-
-// ─── Signup form ──────────────────────────────────────────────────────────────
-function SignupForm({ onSwitchMode }: { onSwitchMode: () => void }) {
-  const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const { register, handleSubmit, formState: { errors } } = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
-  });
-
-  const onSubmit = async (data: SignupFormValues) => {
-    setIsLoading(true);
-    try {
-      await new Promise((r) => setTimeout(r, 1000));
-      login({ id: Date.now().toString(), email: data.email, name: data.name, role: 'CAISSIERE', isActive: true }, 'rex-jwt-token');
-      toast.success('Compte créé !', { description: `Bienvenue, ${data.name} !` });
-      navigate('/');
-    } catch {
-      toast.error('Erreur lors de la création du compte');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Nom */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-name" className="text-white text-sm font-medium">Nom complet</Label>
-        <Input
-          id="signup-name"
-          type="text"
-          placeholder="Jean Dupont"
-          className="bg-secondary/40 border-border text-white placeholder:text-muted-foreground focus-visible:ring-accent h-11"
-          disabled={isLoading}
-          {...register('name')}
-        />
-        {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-      </div>
-
-      {/* Email */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-email" className="text-white text-sm font-medium">Adresse email</Label>
-        <Input
-          id="signup-email"
-          type="email"
-          placeholder="vous@rex.cm"
-          className="bg-secondary/40 border-border text-white placeholder:text-muted-foreground focus-visible:ring-accent h-11"
-          disabled={isLoading}
-          {...register('email')}
-        />
-        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-      </div>
-
-      {/* Mot de passe */}
-      <div className="space-y-1.5">
-        <Label htmlFor="signup-password" className="text-white text-sm font-medium">Mot de passe</Label>
-        <div className="relative">
-          <Input
-            id="signup-password"
-            type={showPassword ? 'text' : 'password'}
-            placeholder="••••••••"
-            className="bg-secondary/40 border-border text-white placeholder:text-muted-foreground focus-visible:ring-accent h-11 pr-10"
-            disabled={isLoading}
-            {...register('password')}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-      </div>
-
-      {/* Bouton Sign Up */}
-      <Button
-        type="submit"
-        id="btn-signup"
-        className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12 text-base shadow-lg shadow-accent/20 transition-all active:scale-[0.98]"
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</>
-        ) : (
-          <><UserPlus className="mr-2 h-5 w-5" />Sign Up</>
-        )}
-      </Button>
-
-      <p className="text-center text-sm text-muted-foreground">
-        Déjà un compte ?{' '}
-        <button type="button" onClick={onSwitchMode} className="text-accent font-semibold hover:underline">
-          Se connecter
-        </button>
-      </p>
-    </form>
-  );
-}
-
-// ─── Main Login Page ──────────────────────────────────────────────────────────
-export default function LoginPage() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-
-  return (
-    <div className="w-full">
-      {/* Logo + Titre */}
-      <div className="flex flex-col items-center mb-8">
-        <RexLogo size={64} />
-        <h1 className="mt-4 text-3xl font-black text-white tracking-tight">Rex</h1>
-        <p className="text-muted-foreground text-sm mt-1">Système de gestion du transport</p>
-      </div>
-
-      {/* Card principale */}
-      <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
-        {/* Onglets Sign Up / Log In */}
-        <div className="flex border-b border-border">
-          <button
-            type="button"
-            id="tab-signup"
-            onClick={() => setMode('signup')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold transition-all ${
-              mode === 'signup'
-                ? 'bg-accent/10 text-accent border-b-2 border-accent'
-                : 'text-muted-foreground hover:text-white hover:bg-secondary/50'
-            }`}
-          >
-            <UserPlus className="h-4 w-4" />
-            Sign Up
-          </button>
-          <button
-            type="button"
-            id="tab-login"
-            onClick={() => setMode('login')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold transition-all ${
-              mode === 'login'
-                ? 'bg-accent/10 text-accent border-b-2 border-accent'
-                : 'text-muted-foreground hover:text-white hover:bg-secondary/50'
-            }`}
-          >
-            <LogIn className="h-4 w-4" />
-            Log In
-          </button>
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-6">
+          <div className="flex-1 h-px bg-border/60"></div>
+          <span className="text-[10px] uppercase font-bold text-muted-foreground">Or</span>
+          <div className="flex-1 h-px bg-border/60"></div>
         </div>
 
-        {/* Contenu du formulaire */}
-        <div className="p-6 space-y-5">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-white">
-              {mode === 'login' ? 'Connexion à votre espace' : 'Créer un compte Rex'}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {mode === 'login'
-                ? 'Entrez vos identifiants pour continuer'
-                : 'Remplissez les informations ci-dessous'}
-            </p>
-          </div>
-
-          {mode === 'login' ? (
-            <LoginForm onSwitchMode={() => setMode('signup')} />
-          ) : (
-            <SignupForm onSwitchMode={() => setMode('login')} />
-          )}
-        </div>
+        {/* Other Login Button */}
+        <Button 
+          type="button"
+          variant="outline"
+          onClick={() => toast.info('Bientôt disponible', { description: 'La connexion avec Google/Apple sera activée prochainement.' })}
+          className="w-full h-14 border-2 border-border/50 text-foreground rounded-xl font-bold text-sm tracking-wide hover:bg-secondary/50 transition-colors"
+        >
+          Sign in with other
+        </Button>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-secondary/20 border-t border-border flex items-center justify-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-accent" />
-          <p className="text-xs text-muted-foreground">Accès réservé au personnel autorisé de Rex</p>
+        <div className="text-center mt-8">
+          <p className="text-xs font-medium text-muted-foreground">
+            Don't have an account? <a href="#" className="text-primary font-bold hover:underline">Sign up</a>
+          </p>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

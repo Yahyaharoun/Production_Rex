@@ -1,81 +1,110 @@
 @import "tailwindcss";
-
-@theme {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-  
-  --color-chart-1: hsl(var(--chart-1));
-  --color-chart-2: hsl(var(--chart-2));
-  --color-chart-3: hsl(var(--chart-3));
-  --color-chart-4: hsl(var(--chart-4));
-  --color-chart-5: hsl(var(--chart-5));
-}
+@config "../tailwind.config.js";
 
 @layer base {
   :root {
-    --background: 150 20% 6%;
-    --foreground: 0 0% 98%;
-    --card: 150 18% 9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 150 18% 9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 142 70% 45%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 150 15% 15%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 150 15% 15%;
-    --muted-foreground: 150 10% 60%;
-    --accent: 142 70% 45%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 150 15% 18%;
-    --input: 150 15% 18%;
-    --ring: 142 70% 45%;
-    --radius: 0.5rem;
-    --chart-1: 142 70% 45%;
-    --chart-2: 142 60% 35%;
-    --chart-3: 142 50% 55%;
-    --chart-4: 160 60% 40%;
-    --chart-5: 120 60% 40%;
+    /* Thème Clair Premium - Base Blanc / Vert / Noir */
+    --background: 0 0% 100%; /* Blanc pur */
+    --foreground: 222.2 84% 4.9%; /* Noir profond */
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 158 82% 43%; /* Vert Rex Premium (#10b981) */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96.1%; /* Gris très clair */
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 158 82% 43%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 158 82% 43%;
+
+    --radius: 0.75rem;
+  }
+
+  /* Version sombre optionnelle (pour le système) */
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 158 82% 43%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
-
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-image: radial-gradient(at 0% 0%, hsla(158, 82%, 43%, 0.05) 0, transparent 50%),
+                      radial-gradient(at 100% 100%, hsla(158, 82%, 43%, 0.05) 0, transparent 50%);
+    background-attachment: fixed;
   }
+}
+
+/* Animations Premium */
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.hover-lift {
+  transition-property: all;
+  transition-duration: 300ms;
+}
+.hover-lift:hover {
+  transform: translateY(-0.25rem);
+  box-shadow: 0 25px 50px -12px hsla(158, 82%, 43%, 0.1);
+}
+
+.text-gradient {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(to right, hsl(var(--foreground)), hsl(var(--primary)));
+}
+
+.rex-gradient-bg {
+  background-image: linear-gradient(to bottom right, #ffffff, #ffffff, hsla(158, 82%, 43%, 0.05));
 }
