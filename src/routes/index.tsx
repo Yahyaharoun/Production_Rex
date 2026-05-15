@@ -39,30 +39,23 @@ export const router = createHashRouter([
           { path: 'vehicles', element: <VehiclesPage /> },
           { path: 'drivers', element: <DriversPage /> },
           { path: 'production', element: <ProductionPage /> },
+          { 
+            path: 'reports', 
+            element: (
+              <ProtectedRoute requiredRole={['PDG', 'CHEF_AGENCE']}>
+                <ReportsPage />
+              </ProtectedRoute>
+            )
+          },
+          { 
+            path: 'users', 
+            element: (
+              <ProtectedRoute requiredRole="PDG">
+                <UsersPage />
+              </ProtectedRoute>
+            )
+          },
         ],
-      },
-      // Routes restreintes sous /app
-      {
-        element: <ProtectedRoute requiredRole={['PDG', 'CHEF_AGENCE']} />,
-        children: [
-          {
-            element: <MainLayout />,
-            children: [
-              { path: 'reports', element: <ReportsPage /> },
-            ]
-          }
-        ]
-      },
-      {
-        element: <ProtectedRoute requiredRole="PDG" />,
-        children: [
-          {
-            element: <MainLayout />,
-            children: [
-              { path: 'users', element: <UsersPage /> },
-            ]
-          }
-        ]
       }
     ],
   },

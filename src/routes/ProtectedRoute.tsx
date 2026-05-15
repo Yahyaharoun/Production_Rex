@@ -4,9 +4,10 @@ import { Role } from '../types';
 
 interface ProtectedRouteProps {
   requiredRole?: Role | Role[];
+  children?: React.ReactNode;
 }
 
-export const ProtectedRoute = ({ requiredRole }: ProtectedRouteProps) => {
+export const ProtectedRoute = ({ requiredRole, children }: ProtectedRouteProps) => {
   const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated) {
@@ -20,5 +21,5 @@ export const ProtectedRoute = ({ requiredRole }: ProtectedRouteProps) => {
     }
   }
 
-  return <Outlet />;
+  return children ? <>{children}</> : <Outlet />;
 };
