@@ -108,17 +108,29 @@ export default function UsersPage() {
       // Force agence to chef's own agence if chef
       const targetAgenceId = isPDG ? (agenceId === 'none' ? null : agenceId) : chefAgenceId;
 
-      const { error } = await supabase.rpc('admin_create_user', {
-        user_email: email,
-        user_password: password,
-        user_full_name: name,
-        user_role: targetRole,
-        user_phone: phone,
-        user_cni: cni,
-        user_agence_id: targetAgenceId
+      // Use Edge Function (bypasses PostgREST 404 issue with RPCs)
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          role: targetRole,
+          phone: phone || null,
+          cni: cni || null,
+          agence_id: targetAgenceId,
+        }),
       });
 
-      if (error) throw error;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erreur lors de la création');
+      
 
       toast.success('Compte créé', { description: `L'utilisateur ${name} a été ajouté avec succès.` });
 
