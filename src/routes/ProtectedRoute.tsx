@@ -15,8 +15,8 @@ export const ProtectedRoute = ({ requiredRole, children }: ProtectedRouteProps) 
   }
 
   if (requiredRole) {
-    const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (user && !roles.includes(user.role)) {
+    const roles = Array.isArray(requiredRole) ? requiredRole.map(r => r.toUpperCase()) : [requiredRole.toUpperCase()];
+    if (user && user.role && !roles.includes(user.role.toUpperCase())) {
       return <Navigate to="/app/dashboard" replace />;
     }
   }
