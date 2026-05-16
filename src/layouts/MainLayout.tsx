@@ -42,7 +42,7 @@ export const MainLayout = () => {
           id: user.id,
           email: user.email,
           name: data.name || 'Utilisateur',
-          role: data.role as any,
+          role: (data.role?.toUpperCase() || 'CHAUFFEUR') as any,
           agenceId: data.agence_id || '',
           isActive: data.is_active ?? true
         }, useAuthStore.getState().token || '');

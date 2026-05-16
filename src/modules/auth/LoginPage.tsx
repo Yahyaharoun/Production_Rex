@@ -52,7 +52,7 @@ export default function LoginPage() {
         id: data.user.id,
         email: data.user.email!,
         name: profile?.name || 'Utilisateur',
-        role: profile?.role || 'CHAUFFEUR',
+        role: (profile?.role?.toUpperCase() || 'CHAUFFEUR') as any,
         agenceId: profile?.agence_id || '',
         isActive: profile?.is_active ?? true
       }, data.session.access_token);
