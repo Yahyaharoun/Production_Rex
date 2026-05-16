@@ -1,73 +1,40 @@
-# React + TypeScript + Vite
+# Production Rex - ERP Transport
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Production Rex est une solution ERP (Enterprise Resource Planning) complète développée spécifiquement pour la gestion des agences de transport. Elle permet une gestion centralisée des agences, des véhicules, des chauffeurs, du personnel et un suivi précis des productions et recettes journalières.
 
-Currently, two official plugins are available:
+## 🚀 Fonctionnalités Principales
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Gestion des Accès (RBAC)** : Système de permissions strict avec 4 rôles (PDG, CHEF_AGENCE, CAISSIERE, CHAUFFEUR).
+- **Administration Centralisée** : Le PDG a une vue globale et un contrôle total sur l'ensemble des agences, des utilisateurs et des recettes.
+- **Gestion des Agences** : Supervision par les Chefs d'Agence qui ne peuvent gérer que les ressources assignées à leur agence.
+- **Production Journalière** : Suivi des recettes (montant chargé), des dépenses (carburant, péage, lavage, etc.) et calcul du net à verser.
+- **Validation Multi-niveaux** : Workflow de validation pour les bordereaux de production (Soumis par les caissières, validés/rejetés par le Chef d'Agence/PDG).
+- **Gestion de Flotte** : Suivi des véhicules (statut, immatriculation) et des chauffeurs.
+- **Rapports Financiers** : Tableaux de bord intuitifs permettant la visualisation en temps réel des performances des agences.
 
-## React Compiler
+## 🛠️ Technologies Utilisées
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend** : [React](https://reactjs.org/) + [Vite](https://vitejs.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Styling** : [Tailwind CSS](https://tailwindcss.com/) + Shadcn UI
+- **Backend / Base de données** : [Supabase](https://supabase.com/) (PostgreSQL, Auth, RLS, Edge Functions)
+- **Hébergement Frontend** : [Vercel](https://vercel.com/)
+- **Gestion d'état / Requêtes** : React Query (TanStack Query)
+- **Routage** : React Router v6
 
-## Expanding the ESLint configuration
+## 🌐 Déploiement
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+L'application est déployée en production et accessible à l'adresse suivante :
+[https://production-rex.vercel.app](https://production-rex.vercel.app)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🔐 Configuration et Sécurité
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- La base de données Supabase utilise des **Row Level Security (RLS)** avancés pour garantir l'étanchéité des données entre les différentes agences.
+- L'authentification est gérée via **Supabase Auth** avec des Edge Functions pour le contournement sécurisé lors de la création d'utilisateurs par les administrateurs.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 👥 Comptes par défaut
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+En production, un compte principal est initialisé :
+- **Rôle** : PDG
+- **Email** : `Pdg@rex.cm`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+*Les autres utilisateurs (Chefs d'agence, caissières) doivent être créés et gérés par la direction depuis l'interface d'administration.*
