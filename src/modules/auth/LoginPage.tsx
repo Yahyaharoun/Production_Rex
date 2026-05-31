@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
       toast.success('Connexion réussie', { description: 'Bienvenue sur Production Rex' });
       navigate('/app/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[REX-AUTH] Erreur globale de login:', err.message);
       toast.error('Échec de la connexion', { 
         description: err.message || 'Identifiants incorrects ou problème réseau.' 
@@ -119,3 +119,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
