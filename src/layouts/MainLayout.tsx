@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+﻿import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import {
   LayoutDashboard, CarFront, Users, FileText,
@@ -80,7 +80,7 @@ export const MainLayout = () => {
             id: user.id,
             email: user.email,
             name: data.name || 'Utilisateur',
-            role: (data.role?.toUpperCase() || 'CHAUFFEUR') as any,
+            role: (data.role?.toUpperCase() || 'CHAUFFEUR') as unknown,
             agenceId: data.agence_id || '',
             isActive: data.is_active ?? true,
           },
@@ -241,3 +241,4 @@ export const MainLayout = () => {
     </div>
   );
 };
+
