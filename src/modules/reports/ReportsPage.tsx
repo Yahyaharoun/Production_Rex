@@ -1,9 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { FileText, Filter, Search, Calendar, FileDown, TrendingUp, TrendingDown, Clock, BarChart3 } from 'lucide-react';
+import {
+  FileText, Filter, Search, Calendar, FileDown,
+  TrendingUp, TrendingDown, Clock, BarChart3, RefreshCw,
+  Star, Bus, MapPin, AlertCircle
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -11,6 +15,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cn } from '../../lib/utils';
 
+// ─── Types ─────────────────────────────────────────────────────────────────
 interface ProductionRecord {
   id: string;
   immatriculation: string;
@@ -23,50 +28,84 @@ interface ProductionRecord {
   net_to_deposit: number;
   date: string;
   status: string;
+  ligne?: string;
+  agence_id?: string;
+  caissiere_name?: string;
+  passengers_at_departure?: number;
+  production_type?: 'CLASSIQUE' | 'VIP';
+  price_per_ticket?: number;
+}
+
+interface Agency {
+  id: string;
+  name: string;
+  city: string;
 }
 
 type ReportPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const fmt = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
+const fmtCompact = (n: number) =>
+  n >= 1_000_000
+    ? (n / 1_000_000).toFixed(1) + 'M'
+    : n >= 1_000
+    ? (n / 1_000).toFixed(0) + 'k'
+    : n.toString();
+
+// ─── Composant principal ───────────────────────────────────────────────────
 export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
+  const [agencies, setAgencies] = useState<Agency[]>([]);
   const [period, setPeriod] = useState<ReportPeriod>('DAILY');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [search, setSearch] = useState('');
+  const [agenceFilter, setAgenceFilter] = useState('');
 
-  const fetchReports = async () => {
+  // ── Chargement des agences ─────────────────────────────────────────────
+  useEffect(() => {
+    supabase
+      .from('agencies')
+      .select('id, name, city')
+      .order('name')
+      .then(({ data }) => {
+        if (data) setAgencies(data);
+      });
+  }, []);
+
+  // ── Chargement des rapports ────────────────────────────────────────────
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      let query = supabase.from('productions').select('*').order('date', { ascending: false });
-      
+      let query = supabase
+        .from('productions')
+        .select('*')
+        .order('date', { ascending: false });
+
       const now = new Date();
-      let start = '';
-      let end = now.toISOString().split('T')[0];
+      const today = now.toISOString().split('T')[0];
 
       if (period === 'DAILY') {
-        start = end;
+        query = query.gte('date', today).lte('date', today);
       } else if (period === 'WEEKLY') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        start = d.toISOString().split('T')[0];
+        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
       } else if (period === 'MONTHLY') {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
-        start = d.toISOString().split('T')[0];
+        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
       } else if (period === 'YEARLY') {
         const d = new Date();
         d.setFullYear(d.getFullYear() - 1);
-        start = d.toISOString().split('T')[0];
+        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
       } else if (period === 'CUSTOM') {
         if (dateStart) query = query.gte('date', dateStart);
         if (dateEnd) query = query.lte('date', dateEnd);
       }
 
-      if (period !== 'CUSTOM') {
-        query = query.gte('date', start).lte('date', end);
-      }
-      
       const { data, error } = await query;
       if (error) throw error;
       setRecords(data || []);
@@ -75,300 +114,574 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period, dateStart, dateEnd]);
 
-  useEffect(() => { fetchReports(); }, [period]);
+  useEffect(() => { fetchReports(); }, [fetchReports]);
 
-  const filteredRecords = records.filter(r => 
-    r.immatriculation.toLowerCase().includes(search.toLowerCase()) ||
-    r.driver_name.toLowerCase().includes(search.toLowerCase())
+  // ── Filtrage local ─────────────────────────────────────────────────────
+  const filteredRecords = records.filter((r) => {
+    const matchSearch =
+      !search ||
+      r.immatriculation?.toLowerCase().includes(search.toLowerCase()) ||
+      r.driver_name?.toLowerCase().includes(search.toLowerCase()) ||
+      r.ligne?.toLowerCase().includes(search.toLowerCase()) ||
+      r.caissiere_name?.toLowerCase().includes(search.toLowerCase());
+
+    const matchAgence =
+      !agenceFilter ||
+      r.ligne?.toLowerCase() === agenceFilter.toLowerCase() ||
+      r.agence_id === agenceFilter;
+
+    return matchSearch && matchAgence;
+  });
+
+  // ── Statistiques globales ──────────────────────────────────────────────
+  const classiques = filteredRecords.filter(
+    (r) => !r.production_type || r.production_type === 'CLASSIQUE'
   );
+  const vips = filteredRecords.filter((r) => r.production_type === 'VIP');
 
-  const totalRevenue = filteredRecords.reduce((sum, r) => sum + Number(r.revenue), 0);
-  const totalExpenses = filteredRecords.reduce((sum, r) => sum + (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)), 0);
-  const totalNet = filteredRecords.reduce((sum, r) => {
-    const net = Number(r.net_to_deposit) || (Number(r.revenue) - (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)));
-    return sum + net;
-  }, 0);
+  const calcStats = (recs: ProductionRecord[]) => ({
+    count: recs.length,
+    revenue: recs.reduce((s, r) => s + Number(r.revenue || 0), 0),
+    expenses: recs.reduce(
+      (s, r) =>
+        s +
+        Number(r.expense_fuel || 0) +
+        Number(r.expense_toll || 0) +
+        Number(r.expense_washing || 0) +
+        Number(r.expense_others || 0),
+      0
+    ),
+    net: recs.reduce((s, r) => {
+      const net =
+        Number(r.net_to_deposit) ||
+        Number(r.revenue) -
+          (Number(r.expense_fuel) +
+            Number(r.expense_toll) +
+            Number(r.expense_washing) +
+            Number(r.expense_others));
+      return s + net;
+    }, 0),
+    passengers: recs.reduce((s, r) => s + Number(r.passengers_at_departure || 0), 0),
+  });
 
+  const statsClassique = calcStats(classiques);
+  const statsVIP = calcStats(vips);
+  const statsTotal = calcStats(filteredRecords);
+
+  // ── Stats par agence ───────────────────────────────────────────────────
+  const statsByAgence = (() => {
+    const map: Record<string, { name: string; classique: number; vip: number; net: number; count: number }> = {};
+    filteredRecords.forEach((r) => {
+      const key = r.ligne || r.agence_id || 'Inconnue';
+      if (!map[key]) map[key] = { name: key, classique: 0, vip: 0, net: 0, count: 0 };
+      const recNet =
+        Number(r.net_to_deposit) ||
+        Number(r.revenue) -
+          (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others));
+      map[key].net += recNet;
+      map[key].count += 1;
+      if (!r.production_type || r.production_type === 'CLASSIQUE') {
+        map[key].classique += Number(r.revenue || 0);
+      } else {
+        map[key].vip += Number(r.revenue || 0);
+      }
+    });
+    return Object.values(map).sort((a, b) => b.net - a.net);
+  })();
+
+  // ── Export PDF ────────────────────────────────────────────────────────
   const exportPDF = async () => {
     setLoading(true);
-    console.log('[REX-PDF] Début de la génération du rapport. Période:', period);
     try {
-      // Fetch fresh data for the selected period directly from Supabase
-      let query = supabase.from('productions').select('*').order('date', { ascending: false });
-      
-      const now = new Date();
-      let start = '';
-      let end = now.toISOString().split('T')[0];
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const periodLabels: Record<ReportPeriod, string> = {
+        DAILY: "Aujourd'hui",
+        WEEKLY: '7 derniers jours',
+        MONTHLY: '30 derniers jours',
+        YEARLY: 'Cette année',
+        CUSTOM: `${dateStart} → ${dateEnd}`,
+      };
 
-      if (period === 'DAILY') {
-        start = end;
-      } else if (period === 'WEEKLY') {
-        const d = new Date();
-        d.setDate(d.getDate() - 7);
-        start = d.toISOString().split('T')[0];
-      } else if (period === 'MONTHLY') {
-        const d = new Date();
-        d.setMonth(d.getMonth() - 1);
-        start = d.toISOString().split('T')[0];
-      } else if (period === 'YEARLY') {
-        const d = new Date();
-        d.setFullYear(d.getFullYear() - 1);
-        start = d.toISOString().split('T')[0];
-      } else if (period === 'CUSTOM') {
-        if (dateStart) query = query.gte('date', dateStart);
-        if (dateEnd) query = query.lte('date', dateEnd);
-      }
-
-      if (period !== 'CUSTOM') {
-        query = query.gte('date', start).lte('date', end);
-      }
-      
-      console.log('[REX-PDF] Exécution de la requête Supabase pour la période:', { start, end });
-      const { data: exportData, error } = await query;
-      
-      if (error) {
-        console.error('[REX-PDF] Erreur lors du fetch des données:', error);
-        throw error;
-      }
-
-      if (!exportData || exportData.length === 0) {
-        console.warn('[REX-PDF] Aucune donnée trouvée pour l\'export.');
-        toast.error('Aucune donnée à exporter pour cette période');
-        return;
-      }
-
-      console.log(`[REX-PDF] Données récupérées: ${exportData.length} enregistrements. Génération du PDF...`);
-      const totalRev = exportData.reduce((sum, r) => sum + Number(r.revenue), 0);
-      const totalExp = exportData.reduce((sum, r) => sum + (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)), 0);
-      const totalNetVal = exportData.reduce((sum, r) => sum + Number(r.net_to_deposit), 0);
-
-      const doc = new jsPDF();
-      
-      doc.setFillColor(16, 185, 129);
-      doc.rect(0, 0, 210, 45, 'F');
-      
+      // En-tête
+      doc.setFillColor(6, 95, 70);
+      doc.rect(0, 0, 297, 28, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(26);
-      doc.text('PRODUCTION REX ERP', 14, 22);
-      
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PRODUCTION REX — RAPPORT', 14, 12);
       doc.setFontSize(10);
-      doc.text('RAPPORT DE PERFORMANCE - PERIODE : ' + period, 14, 32);
-      doc.text('GENERE LE : ' + new Date().toLocaleDateString('fr-FR'), 14, 38);
-      
-      doc.setTextColor(50, 50, 50);
-      doc.setFontSize(14);
-      doc.text('SYNTHESE FINANCIERE', 14, 60);
-      
-      doc.setDrawColor(230, 230, 230);
-      doc.line(14, 63, 196, 63);
-      
-      doc.setFontSize(11);
-      doc.text('Nombre de voyages : ' + exportData.length, 14, 72);
-      doc.text('Recette Brut Totale : ' + totalRev + ' XAF', 14, 80);
-      
-      doc.setTextColor(220, 38, 38);
-      doc.text('Total des Charges : ' + totalExp + ' XAF', 14, 88);
-      
-      doc.setTextColor(5, 150, 105);
-      doc.setFontSize(12);
-      doc.text('NET TOTAL A VERSER : ' + totalNetVal + ' XAF', 14, 98);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Période: ${periodLabels[period]}  |  Généré le: ${new Date().toLocaleString('fr-FR')}`, 14, 21);
 
-      const tableColumn = ["ID", "Date", "Vehicule", "Chauffeur", "Recette", "Charges", "Net"];
-      const tableRows = exportData.map((r, i) => {
-        const expenses = (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others));
-        return [
-          (exportData.length - i).toString(),
-          r.date,
-          r.immatriculation,
-          r.driver_name,
-          r.revenue.toString(),
-          expenses.toString(),
-          r.net_to_deposit.toString()
-        ];
-      });
+      doc.setTextColor(0, 0, 0);
+      let y = 35;
+
+      // Résumé global
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Résumé Global', 14, y);
+      y += 6;
 
       autoTable(doc, {
-        startY: 110,
-        head: [tableColumn],
-        body: tableRows,
-        theme: 'striped',
-        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', halign: 'center' },
-        styles: { fontSize: 9, cellPadding: 3 },
-        columnStyles: {
-          3: { halign: 'right' },
-          4: { halign: 'right' },
-          5: { halign: 'right', fontStyle: 'bold' }
-        },
-        alternateRowStyles: { fillColor: [245, 250, 245] }
+        startY: y,
+        head: [['Type', 'Nb Productions', 'Recettes', 'Dépenses', 'Net à verser']],
+        body: [
+          ['CLASSIQUE', statsClassique.count, fmt(statsClassique.revenue), fmt(statsClassique.expenses), fmt(statsClassique.net)],
+          ['VIP', statsVIP.count, fmt(statsVIP.revenue), fmt(statsVIP.expenses), fmt(statsVIP.net)],
+          ['TOTAL', statsTotal.count, fmt(statsTotal.revenue), fmt(statsTotal.expenses), fmt(statsTotal.net)],
+        ],
+        headStyles: { fillColor: [6, 95, 70], textColor: 255, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [240, 255, 248] },
+        foot: [['', '', '', '', '']],
+        theme: 'grid',
+        margin: { left: 14, right: 14 },
       });
 
-      // Footer
-      const pageCount = (doc as any).internal.getNumberOfPages();
-      for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Page ${i} sur ${pageCount} - Système Production Rex - Document Confidentiel`, 105, 290, { align: 'center' });
+      y = (doc as any).lastAutoTable.finalY + 10;
+
+      // Stats par agence
+      if (statsByAgence.length > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Statistiques par Agence', 14, y);
+        y += 6;
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Agence', 'Productions', 'Recettes Classique', 'Recettes VIP', 'Net Total']],
+          body: statsByAgence.map((a) => [
+            a.name,
+            a.count,
+            fmt(a.classique),
+            fmt(a.vip),
+            fmt(a.net),
+          ]),
+          headStyles: { fillColor: [14, 165, 122], textColor: 255, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 9 },
+          alternateRowStyles: { fillColor: [240, 253, 250] },
+          theme: 'grid',
+          margin: { left: 14, right: 14 },
+        });
+
+        y = (doc as any).lastAutoTable.finalY + 10;
       }
 
-      console.log('[REX-PDF] Génération terminée avec succès.');
-      doc.save(`Rex_Rapport_Officiel_${period}_${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('Rapport PDF généré avec les données réelles de la base');
+      // Détail des productions
+      doc.addPage();
+      doc.setFillColor(6, 95, 70);
+      doc.rect(0, 0, 297, 14, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('Détail des Productions', 14, 9);
+      doc.setTextColor(0, 0, 0);
+
+      autoTable(doc, {
+        startY: 18,
+        head: [['Date', 'Immat.', 'Chauffeur', 'Type', 'Ligne', 'Passagers', 'Recette', 'Dépenses', 'Net', 'Statut']],
+        body: filteredRecords.map((r) => {
+          const net =
+            Number(r.net_to_deposit) ||
+            Number(r.revenue) -
+              (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others));
+          const expenses = Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others);
+          return [
+            r.date,
+            r.immatriculation,
+            r.driver_name,
+            r.production_type || 'CLASSIQUE',
+            r.ligne || '-',
+            r.passengers_at_departure || '-',
+            fmt(Number(r.revenue)),
+            fmt(expenses),
+            fmt(net),
+            r.status === 'VALIDATED' ? 'Validé' : 'Brouillon',
+          ];
+        }),
+        headStyles: { fillColor: [6, 95, 70], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        alternateRowStyles: { fillColor: [248, 255, 252] },
+        theme: 'grid',
+        margin: { left: 14, right: 14 },
+      });
+
+      doc.save(`rapport-production-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('Rapport PDF exporté avec succès !');
     } catch (err: any) {
-      console.error('[REX-PDF] Erreur fatale lors de la génération PDF:', err);
-      toast.error('Erreur lors de la génération du PDF', { description: err.message });
+      toast.error('Erreur export PDF', { description: err.message });
     } finally {
       setLoading(false);
     }
   };
 
+  const PERIODS: { key: ReportPeriod; label: string; icon: string }[] = [
+    { key: 'DAILY',   label: "Aujourd'hui", icon: '📅' },
+    { key: 'WEEKLY',  label: '7 jours',     icon: '📆' },
+    { key: 'MONTHLY', label: '30 jours',    icon: '🗓️' },
+    { key: 'YEARLY',  label: 'Annuel',      icon: '📊' },
+    { key: 'CUSTOM',  label: 'Personnalisé', icon: '🔧' },
+  ];
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-8">
+      {/* ── En-tête ───────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-foreground">Rapports Financiers</h2>
-          <p className="text-muted-foreground mt-1 font-bold">Analyse des performances et exports comptables.</p>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <BarChart3 className="h-7 w-7 text-primary" />
+            Rapports & Comptabilité
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Analyse détaillée des productions — Classique &amp; VIP
+          </p>
         </div>
-        <Button onClick={exportPDF} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-black transition-all hover:-translate-y-0.5">
-          <FileDown className="mr-3 h-5 w-5" />Exporter Rapport PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchReports} disabled={loading}>
+            <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
+            Actualiser
+          </Button>
+          <Button size="sm" onClick={exportPDF} disabled={loading || filteredRecords.length === 0}>
+            <FileDown className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
-      {/* Sélecteur de Période Premium */}
-      <div className="bg-white p-1.5 rounded-[1.25rem] shadow-sm border-2 border-border flex flex-wrap gap-1.5">
-        {([
-          { id: 'DAILY', label: 'Journalier', icon: Clock },
-          { id: 'WEEKLY', label: 'Hebdomadaire', icon: BarChart3 },
-          { id: 'MONTHLY', label: 'Mensuel', icon: Calendar },
-          { id: 'YEARLY', label: 'Annuel', icon: TrendingUp },
-          { id: 'CUSTOM', label: 'Personnalisé', icon: Filter },
-        ] as const).map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPeriod(p.id)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xs transition-all",
-              period === p.id 
-                ? "bg-primary text-white shadow-md shadow-primary/20" 
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            )}
-          >
-            <p.icon className="h-3.5 w-3.5" />
-            {p.label}
-          </button>
-        ))}
-      </div>
+      {/* ── Filtres de période ────────────────────────────────────────────── */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap gap-2">
+            {PERIODS.map(({ key, label, icon }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
+                  period === key
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'border-border hover:border-primary/50 hover:bg-muted'
+                )}
+              >
+                <span>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
 
-      {period === 'CUSTOM' && (
-        <Card className="bg-white border-border shadow-sm rounded-3xl animate-in zoom-in-95 duration-200">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-6 items-end">
-              <div className="space-y-2 flex-1">
-                <Label className="text-foreground text-xs font-black uppercase tracking-widest ml-1">Date début</Label>
-                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
+          {period === 'CUSTOM' && (
+            <div className="flex flex-wrap gap-3 mt-4">
+              <div className="flex items-center gap-2">
+                <Label className="text-sm whitespace-nowrap">Du :</Label>
+                <Input
+                  type="date"
+                  value={dateStart}
+                  onChange={(e) => setDateStart(e.target.value)}
+                  className="w-40 h-8 text-sm"
+                />
               </div>
-              <div className="space-y-2 flex-1">
-                <Label className="text-foreground text-xs font-black uppercase tracking-widest ml-1">Date fin</Label>
-                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="bg-secondary/20 border-border rounded-xl h-12 font-bold" />
+              <div className="flex items-center gap-2">
+                <Label className="text-sm whitespace-nowrap">Au :</Label>
+                <Input
+                  type="date"
+                  value={dateEnd}
+                  onChange={(e) => setDateEnd(e.target.value)}
+                  className="w-40 h-8 text-sm"
+                />
               </div>
-              <Button onClick={fetchReports} className="bg-foreground text-white h-12 px-8 rounded-xl font-black">Appliquer</Button>
+              <Button size="sm" onClick={fetchReports} className="h-8">
+                <Filter className="h-3.5 w-3.5 mr-1.5" />
+                Appliquer
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Statistiques Classique vs VIP ─────────────────────────────────── */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1,2,3].map(i => <Skeleton key={i} className="h-40 rounded-2xl" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* CLASSIQUE */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-primary/10 to-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-primary flex items-center gap-2">
+                <Bus className="h-4 w-4" /> Productions CLASSIQUE
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-black text-foreground">{statsClassique.count}</div>
+              <div className="text-xs text-muted-foreground">voyages effectués</div>
+              <div className="pt-2 space-y-1 border-t border-primary/10">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Recettes</span>
+                  <span className="font-bold text-primary">{fmt(statsClassique.revenue)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Net versé</span>
+                  <span className="font-bold text-emerald-600">{fmt(statsClassique.net)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Passagers</span>
+                  <span className="font-semibold">{statsClassique.passengers.toLocaleString()}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* VIP */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-transparent">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-amber-600 flex items-center gap-2">
+                <Star className="h-4 w-4 fill-amber-400" /> Productions VIP
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-black text-foreground">{statsVIP.count}</div>
+              <div className="text-xs text-muted-foreground">voyages effectués</div>
+              <div className="pt-2 space-y-1 border-t border-amber-100 dark:border-amber-900/30">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Recettes</span>
+                  <span className="font-bold text-amber-600">{fmt(statsVIP.revenue)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Net versé</span>
+                  <span className="font-bold text-emerald-600">{fmt(statsVIP.net)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Passagers</span>
+                  <span className="font-semibold">{statsVIP.passengers.toLocaleString()}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* TOTAL */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-transparent border-l-4 border-l-emerald-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> TOTAL GÉNÉRAL
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-black text-foreground">{statsTotal.count}</div>
+              <div className="text-xs text-muted-foreground">toutes productions</div>
+              <div className="pt-2 space-y-1 border-t border-emerald-100 dark:border-emerald-900/30">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Recettes totales</span>
+                  <span className="font-bold text-emerald-600">{fmt(statsTotal.revenue)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Dépenses totales</span>
+                  <span className="font-bold text-destructive">− {fmt(statsTotal.expenses)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold border-t border-emerald-200 dark:border-emerald-800 pt-1 mt-1">
+                  <span>Net total versé</span>
+                  <span className="text-emerald-600 text-base">{fmt(statsTotal.net)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Stats par agence ──────────────────────────────────────────────── */}
+      {!loading && statsByAgence.length > 0 && (
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Statistiques par Agence
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 font-semibold text-muted-foreground">Agence</th>
+                    <th className="text-right py-2 px-3 font-semibold text-muted-foreground">Productions</th>
+                    <th className="text-right py-2 px-3 font-semibold text-primary">Classique</th>
+                    <th className="text-right py-2 px-3 font-semibold text-amber-600">VIP</th>
+                    <th className="text-right py-2 px-3 font-semibold text-emerald-600">Net Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsByAgence.map((a, i) => (
+                    <tr key={a.name} className={cn('border-b last:border-0', i % 2 === 0 ? 'bg-muted/20' : '')}>
+                      <td className="py-2.5 px-3 font-medium">{a.name}</td>
+                      <td className="py-2.5 px-3 text-right text-muted-foreground">{a.count}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-primary">
+                        {fmtCompact(a.classique)} FCFA
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-amber-600">
+                        {a.vip > 0 ? `${fmtCompact(a.vip)} FCFA` : '—'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                        {fmtCompact(a.net)} FCFA
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-primary/20 bg-primary/5">
+                    <td className="py-2.5 px-3 font-bold">TOTAL</td>
+                    <td className="py-2.5 px-3 text-right font-bold">{statsTotal.count}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-primary">
+                      {fmtCompact(statsClassique.revenue)} FCFA
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-amber-600">
+                      {fmtCompact(statsVIP.revenue)} FCFA
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                      {fmtCompact(statsTotal.net)} FCFA
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Résumé Financier */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <Card className="bg-white border-border shadow-sm rounded-xl p-5 border-l-4 border-l-primary">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Recette Brut</p>
-              <h3 className="text-xl font-black text-foreground">{totalRevenue.toLocaleString()} <span className="text-xs">XAF</span></h3>
+      {/* ── Filtres de recherche ──────────────────────────────────────────── */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher immatriculation, chauffeur, ligne..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9"
+              />
             </div>
-            <div className="bg-primary/10 p-2 rounded-lg text-primary"><TrendingUp className="h-5 w-5" /></div>
+            <select
+              value={agenceFilter}
+              onChange={(e) => setAgenceFilter(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[160px]"
+            >
+              <option value="">Toutes les agences</option>
+              {agencies.map((a) => (
+                <option key={a.id} value={a.name}>{a.name}</option>
+              ))}
+            </select>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredRecords.length} résultat{filteredRecords.length !== 1 ? 's' : ''}
+            </span>
           </div>
-        </Card>
-        <Card className="bg-white border-border shadow-sm rounded-xl p-5 border-l-4 border-l-destructive">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Total Charges</p>
-              <h3 className="text-xl font-black text-foreground">{totalExpenses.toLocaleString()} <span className="text-xs">XAF</span></h3>
-            </div>
-            <div className="bg-destructive/10 p-2 rounded-lg text-destructive"><TrendingDown className="h-5 w-5" /></div>
-          </div>
-        </Card>
-        <Card className="bg-primary text-white shadow-lg shadow-primary/20 rounded-xl p-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-1.5">Net à Verser Total</p>
-              <h3 className="text-xl font-black">{totalNet.toLocaleString()} <span className="text-xs">XAF</span></h3>
-            </div>
-            <div className="bg-white/20 p-2 rounded-lg"><FileText className="h-5 w-5" /></div>
-          </div>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Tableau des données */}
-      <Card className="bg-white border-border shadow-sm rounded-[2.5rem] overflow-hidden border-2">
-        <CardHeader className="bg-secondary/10 p-8 border-b border-border/50">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <CardTitle className="text-xl font-black">Historique {period}</CardTitle>
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} 
-                className="pl-12 bg-white border-border rounded-xl h-12 font-bold shadow-sm" />
-            </div>
-          </div>
+      {/* ── Liste des productions ─────────────────────────────────────────── */}
+      <Card className="border-0 shadow-md">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Détail des Productions
+          </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent>
           {loading ? (
-            <div className="p-8 space-y-4">
-               <Skeleton className="h-16 w-full rounded-2xl" />
-               <Skeleton className="h-16 w-full rounded-2xl" />
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))}
             </div>
           ) : filteredRecords.length === 0 ? (
-            <div className="text-center py-24 text-muted-foreground">
-              <FileText className="mx-auto h-16 w-16 mb-4 opacity-5" />
-              <p className="font-black text-xl">Aucune donnée sur cette période.</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              <p className="font-medium">Aucune production trouvée</p>
+              <p className="text-sm mt-1 opacity-70">
+                Modifiez les filtres ou la période sélectionnée
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left border-collapse">
-                <thead className="text-[10px] font-black uppercase tracking-widest bg-secondary/30 text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="px-8 py-5">Date</th>
-                    <th className="px-8 py-5">Véhicule</th>
-                    <th className="px-8 py-5">Chauffeur</th>
-                    <th className="px-8 py-5 text-right">Recette</th>
-                    <th className="px-8 py-5 text-right">Charges</th>
-                    <th className="px-8 py-5 text-right text-primary">Net Versé</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {filteredRecords.map((r) => (
-                    <tr key={r.id} className="hover:bg-secondary/20 transition-all group font-bold">
-                      <td className="px-8 py-6 text-muted-foreground">{new Date(r.date).toLocaleDateString('fr-FR')}</td>
-                      <td className="px-8 py-6 font-black text-foreground">{r.immatriculation}</td>
-                      <td className="px-8 py-6 text-muted-foreground">{r.driver_name}</td>
-                      <td className="px-8 py-6 text-right">{Number(r.revenue).toLocaleString()}</td>
-                      <td className="px-8 py-6 text-right text-destructive">
-                        {(Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others)).toLocaleString()}
-                      </td>
-                      <td className="px-8 py-6 text-right font-black text-primary bg-primary/5">{Number(r.net_to_deposit).toLocaleString()} XAF</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-secondary/40 font-black text-lg">
-                  <tr>
-                    <td colSpan={3} className="px-8 py-6 text-right uppercase tracking-tighter text-xs">TOTAUX SUR LA PÉRIODE</td>
-                    <td className="px-8 py-6 text-right">{totalRevenue.toLocaleString()}</td>
-                    <td className="px-8 py-6 text-right text-destructive">{totalExpenses.toLocaleString()}</td>
-                    <td className="px-8 py-6 text-right text-primary">{totalNet.toLocaleString()} XAF</td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+              {filteredRecords.map((r) => {
+                const net =
+                  Number(r.net_to_deposit) ||
+                  Number(r.revenue) -
+                    (Number(r.expense_fuel) +
+                      Number(r.expense_toll) +
+                      Number(r.expense_washing) +
+                      Number(r.expense_others));
+                const expenses =
+                  Number(r.expense_fuel) +
+                  Number(r.expense_toll) +
+                  Number(r.expense_washing) +
+                  Number(r.expense_others);
+
+                return (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between p-3 rounded-xl border bg-muted/20 hover:bg-muted/40 transition-colors gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm font-mono">{r.immatriculation}</span>
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-0.5 rounded-full font-semibold',
+                            r.production_type === 'VIP'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              : 'bg-primary/10 text-primary'
+                          )}
+                        >
+                          {r.production_type || 'CLASSIQUE'}
+                        </span>
+                        {r.ligne && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {r.ligne}
+                          </span>
+                        )}
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-0.5 rounded-full',
+                            r.status === 'VALIDATED'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-orange-100 text-orange-700'
+                          )}
+                        >
+                          {r.status === 'VALIDATED' ? '✓ Validé' : '⏳ Brouillon'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-2">
+                        <span>{r.driver_name}</span>
+                        <span>·</span>
+                        <span>{r.passengers_at_departure || 0} pass.</span>
+                        <span>·</span>
+                        <span>{new Date(r.date).toLocaleDateString('fr-FR')}</span>
+                        <span>·</span>
+                        <span className="text-destructive">
+                          − {fmt(expenses)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0 space-y-0.5">
+                      <div className="text-xs text-muted-foreground">Recette</div>
+                      <div className="text-sm font-semibold">
+                        {fmt(Number(r.revenue))}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Net</div>
+                      <div
+                        className={cn(
+                          'font-black text-sm',
+                          net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                        )}
+                      >
+                        {fmt(net)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
