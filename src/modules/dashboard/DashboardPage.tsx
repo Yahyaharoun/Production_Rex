@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from '../../components/ui/button';
 import { Bus, Banknote, MapPin, TrendingUp, CheckCircle, ArrowUpRight, Loader2, Calendar, Database } from "lucide-react";
@@ -73,7 +73,7 @@ export default function DashboardPage() {
         weeklyTrend,
         todayEntries: todayProds
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur de synchronisation', { description: err.message });
     } finally {
       setLoading(false);
@@ -311,3 +311,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
