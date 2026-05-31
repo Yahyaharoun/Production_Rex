@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -159,7 +159,7 @@ export default function DriversPage() {
       if (vehiclesRes.error) throw vehiclesRes.error;
       setDrivers(driversRes.data || []);
       setVehicles(vehiclesRes.data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setLoading(false);
@@ -184,7 +184,7 @@ export default function DriversPage() {
       toast.success('Chauffeur ajouté');
       setShowForm(false);
       fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setSaving(false);
@@ -208,7 +208,7 @@ export default function DriversPage() {
       toast.success('Chauffeur mis à jour');
       setEditingDriver(null);
       fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setSaving(false);
@@ -223,7 +223,7 @@ export default function DriversPage() {
       if (error) throw error;
       toast.success('Chauffeur supprimé');
       fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setLoading(false);
@@ -366,3 +366,4 @@ export default function DriversPage() {
     </div>
   );
 }
+
