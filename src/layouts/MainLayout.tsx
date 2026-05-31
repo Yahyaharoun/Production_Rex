@@ -2,14 +2,14 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import {
   LayoutDashboard, CarFront, Users, FileText,
-  LogOut, Menu, X, Wifi, WifiOff
+  LogOut, Menu, X, WifiOff
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { supabase } from '../lib/supabase';
 
-// ─── Logo Rex ───────────────────────────────────────────────────────────────
+// ── Logo Rex ──────────────────────────────────────────────────────────────
 const RexLogo = ({ size = 32 }: { size?: number }) => (
   <svg
     width={size}
@@ -35,7 +35,7 @@ const RexLogo = ({ size = 32 }: { size?: number }) => (
   </svg>
 );
 
-// ─── Indicateur Online/Offline ──────────────────────────────────────────────
+// ── Indicateur Online/Offline ─────────────────────────────────────────────
 const OnlineStatus = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -50,7 +50,7 @@ const OnlineStatus = () => {
     };
   }, []);
 
-  if (isOnline) return null; // N'afficher que si hors ligne
+  if (isOnline) return null;
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 border border-destructive/30 rounded-lg text-xs text-destructive font-medium">
@@ -89,6 +89,7 @@ export const MainLayout = () => {
       }
     };
     refreshProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLogout = () => {
@@ -96,7 +97,6 @@ export const MainLayout = () => {
     navigate('/login');
   };
 
-  // Fermer sidebar en cliquant à l'extérieur (mobile)
   const closeSidebar = () => setSidebarOpen(false);
 
   const navigation = [
@@ -117,7 +117,7 @@ export const MainLayout = () => {
     ),
   ];
 
-  // ─── Contenu de la sidebar ─────────────────────────────────────────────
+  // ── Contenu de la sidebar ──────────────────────────────────────────────
   const SidebarContent = () => (
     <div className="flex min-h-0 flex-1 flex-col border-r border-border bg-card shadow-sm">
       {/* Logo + Titre */}
@@ -160,7 +160,6 @@ export const MainLayout = () => {
 
       {/* Profil utilisateur + Déconnexion */}
       <div className="border-t border-border p-3 space-y-2">
-        {/* Indicateur Online/Offline */}
         <OnlineStatus />
 
         <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-muted/50">
@@ -190,12 +189,12 @@ export const MainLayout = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* ── Sidebar desktop ─────────────────────────────────────────────── */}
+      {/* ── Sidebar desktop ── */}
       <div className="hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:flex-col">
         <SidebarContent />
       </div>
 
-      {/* ── Overlay mobile ──────────────────────────────────────────────── */}
+      {/* ── Overlay mobile ── */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
@@ -204,7 +203,7 @@ export const MainLayout = () => {
         />
       )}
 
-      {/* ── Sidebar mobile (drawer) ─────────────────────────────────────── */}
+      {/* ── Sidebar mobile (drawer) ── */}
       <div
         className={cn(
           'fixed inset-y-0 left-0 z-50 w-72 flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden',
@@ -214,7 +213,7 @@ export const MainLayout = () => {
         <SidebarContent />
       </div>
 
-      {/* ── Contenu principal ────────────────────────────────────────────── */}
+      {/* ── Contenu principal ── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar mobile */}
         <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:hidden shadow-sm">
