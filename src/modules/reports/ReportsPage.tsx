@@ -4,15 +4,12 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
-  FileText, Filter, Search, Calendar, FileDown,
-  TrendingUp, TrendingDown, Clock, BarChart3, RefreshCw,
-  Star, Bus, MapPin, AlertCircle
+  FileText, Filter, Search, FileDown,
+  TrendingUp, RefreshCw, Star, Bus, MapPin, BarChart3
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { cn } from '../../lib/utils';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -109,8 +106,9 @@ export default function ReportsPage() {
       const { data, error } = await query;
       if (error) throw error;
       setRecords(data || []);
-    } catch (err: any) {
-      toast.error('Erreur de chargement', { description: err.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+      toast.error('Erreur de chargement', { description: msg });
     } finally {
       setLoading(false);
     }
@@ -191,17 +189,19 @@ export default function ReportsPage() {
     return Object.values(map).sort((a, b) => b.net - a.net);
   })();
 
-  // ── Export PDF ────────────────────────────────────────────────────────
+  // ── Export PDF (sans jspdf-autotable — utilise jsPDF natif) ──────────
   const exportPDF = async () => {
     setLoading(true);
     try {
+      const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ orientation: 'landscape' });
+
       const periodLabels: Record<ReportPeriod, string> = {
         DAILY: "Aujourd'hui",
         WEEKLY: '7 derniers jours',
         MONTHLY: '30 derniers jours',
-        YEARLY: 'Cette année',
-        CUSTOM: `${dateStart} → ${dateEnd}`,
+        YEARLY: 'Cette annee',
+        CUSTOM: `${dateStart} - ${dateEnd}`,
       };
 
       // En-tête
@@ -210,107 +210,116 @@ export default function ReportsPage() {
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('PRODUCTION REX — RAPPORT', 14, 12);
+      doc.text('PRODUCTION REX - RAPPORT', 14, 12);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Période: ${periodLabels[period]}  |  Généré le: ${new Date().toLocaleString('fr-FR')}`, 14, 21);
-
+      doc.text(`Periode: ${periodLabels[period]}  |  Genere le: ${new Date().toLocaleDateString('fr-FR')}`, 14, 21);
       doc.setTextColor(0, 0, 0);
+
       let y = 35;
 
       // Résumé global
-      doc.setFontSize(12);
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text('Résumé Global', 14, y);
-      y += 6;
+      doc.text('Resume Global', 14, y);
+      y += 8;
 
-      autoTable(doc, {
-        startY: y,
-        head: [['Type', 'Nb Productions', 'Recettes', 'Dépenses', 'Net à verser']],
-        body: [
-          ['CLASSIQUE', statsClassique.count, fmt(statsClassique.revenue), fmt(statsClassique.expenses), fmt(statsClassique.net)],
-          ['VIP', statsVIP.count, fmt(statsVIP.revenue), fmt(statsVIP.expenses), fmt(statsVIP.net)],
-          ['TOTAL', statsTotal.count, fmt(statsTotal.revenue), fmt(statsTotal.expenses), fmt(statsTotal.net)],
-        ],
-        headStyles: { fillColor: [6, 95, 70], textColor: 255, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 9 },
-        alternateRowStyles: { fillColor: [240, 255, 248] },
-        foot: [['', '', '', '', '']],
-        theme: 'grid',
-        margin: { left: 14, right: 14 },
+      // Table manuelle
+      const colWidths = [50, 40, 55, 55, 55];
+      const headers = ['Type', 'Productions', 'Recettes', 'Depenses', 'Net a verser'];
+      const rows = [
+        ['CLASSIQUE', String(statsClassique.count), fmt(statsClassique.revenue), fmt(statsClassique.expenses), fmt(statsClassique.net)],
+        ['VIP', String(statsVIP.count), fmt(statsVIP.revenue), fmt(statsVIP.expenses), fmt(statsVIP.net)],
+        ['TOTAL', String(statsTotal.count), fmt(statsTotal.revenue), fmt(statsTotal.expenses), fmt(statsTotal.net)],
+      ];
+
+      // Draw table header
+      doc.setFillColor(6, 95, 70);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      let x = 14;
+      headers.forEach((h, i) => {
+        doc.rect(x, y, colWidths[i], 8, 'F');
+        doc.text(h, x + 2, y + 5.5);
+        x += colWidths[i];
       });
+      y += 8;
 
-      y = (doc as any).lastAutoTable.finalY + 10;
+      // Draw table rows
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      rows.forEach((row, ri) => {
+        if (ri % 2 === 0) {
+          doc.setFillColor(240, 255, 248);
+          x = 14;
+          row.forEach((_cell, i) => {
+            doc.rect(x, y, colWidths[i], 7, 'F');
+            x += colWidths[i];
+          });
+        }
+        x = 14;
+        row.forEach((cell, i) => {
+          doc.rect(x, y, colWidths[i], 7);
+          doc.text(cell, x + 2, y + 4.5);
+          x += colWidths[i];
+        });
+        y += 7;
+      });
+      y += 10;
 
       // Stats par agence
       if (statsByAgence.length > 0) {
-        doc.setFontSize(12);
+        doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
         doc.text('Statistiques par Agence', 14, y);
-        y += 6;
+        y += 8;
 
-        autoTable(doc, {
-          startY: y,
-          head: [['Agence', 'Productions', 'Recettes Classique', 'Recettes VIP', 'Net Total']],
-          body: statsByAgence.map((a) => [
-            a.name,
-            a.count,
-            fmt(a.classique),
-            fmt(a.vip),
-            fmt(a.net),
-          ]),
-          headStyles: { fillColor: [14, 165, 122], textColor: 255, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 9 },
-          alternateRowStyles: { fillColor: [240, 253, 250] },
-          theme: 'grid',
-          margin: { left: 14, right: 14 },
+        const agColW = [60, 35, 55, 55, 55];
+        const agHeaders = ['Agence', 'Productions', 'Classique', 'VIP', 'Net Total'];
+        doc.setFillColor(14, 165, 122);
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        x = 14;
+        agHeaders.forEach((h, i) => {
+          doc.rect(x, y, agColW[i], 8, 'F');
+          doc.text(h, x + 2, y + 5.5);
+          x += agColW[i];
         });
+        y += 8;
 
-        y = (doc as any).lastAutoTable.finalY + 10;
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        statsByAgence.forEach((a, ri) => {
+          const row = [a.name, String(a.count), fmt(a.classique), a.vip > 0 ? fmt(a.vip) : '-', fmt(a.net)];
+          if (ri % 2 === 0) {
+            doc.setFillColor(240, 253, 250);
+            x = 14;
+            row.forEach((_c, i) => {
+              doc.rect(x, y, agColW[i], 7, 'F');
+              x += agColW[i];
+            });
+          }
+          x = 14;
+          row.forEach((cell, i) => {
+            doc.rect(x, y, agColW[i], 7);
+            doc.text(cell.substring(0, 20), x + 2, y + 4.5);
+            x += agColW[i];
+          });
+          y += 7;
+          if (y > 185) {
+            doc.addPage();
+            y = 15;
+          }
+        });
       }
 
-      // Détail des productions
-      doc.addPage();
-      doc.setFillColor(6, 95, 70);
-      doc.rect(0, 0, 297, 14, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.text('Détail des Productions', 14, 9);
-      doc.setTextColor(0, 0, 0);
-
-      autoTable(doc, {
-        startY: 18,
-        head: [['Date', 'Immat.', 'Chauffeur', 'Type', 'Ligne', 'Passagers', 'Recette', 'Dépenses', 'Net', 'Statut']],
-        body: filteredRecords.map((r) => {
-          const net =
-            Number(r.net_to_deposit) ||
-            Number(r.revenue) -
-              (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others));
-          const expenses = Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others);
-          return [
-            r.date,
-            r.immatriculation,
-            r.driver_name,
-            r.production_type || 'CLASSIQUE',
-            r.ligne || '-',
-            r.passengers_at_departure || '-',
-            fmt(Number(r.revenue)),
-            fmt(expenses),
-            fmt(net),
-            r.status === 'VALIDATED' ? 'Validé' : 'Brouillon',
-          ];
-        }),
-        headStyles: { fillColor: [6, 95, 70], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-        bodyStyles: { fontSize: 7 },
-        alternateRowStyles: { fillColor: [248, 255, 252] },
-        theme: 'grid',
-        margin: { left: 14, right: 14 },
-      });
-
-      doc.save(`rapport-production-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('Rapport PDF exporté avec succès !');
-    } catch (err: any) {
-      toast.error('Erreur export PDF', { description: err.message });
+      doc.save(`rapport-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('Rapport PDF exporte avec succes !');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+      toast.error('Erreur export PDF', { description: msg });
     } finally {
       setLoading(false);
     }
@@ -321,7 +330,7 @@ export default function ReportsPage() {
     { key: 'WEEKLY',  label: '7 jours',     icon: '📆' },
     { key: 'MONTHLY', label: '30 jours',    icon: '🗓️' },
     { key: 'YEARLY',  label: 'Annuel',      icon: '📊' },
-    { key: 'CUSTOM',  label: 'Personnalisé', icon: '🔧' },
+    { key: 'CUSTOM',  label: 'Personnalise', icon: '🔧' },
   ];
 
   return (
@@ -331,10 +340,10 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <BarChart3 className="h-7 w-7 text-primary" />
-            Rapports & Comptabilité
+            Rapports &amp; Comptabilite
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Analyse détaillée des productions — Classique &amp; VIP
+            Analyse detaillee des productions — Classique &amp; VIP
           </p>
         </div>
         <div className="flex gap-2">
@@ -415,14 +424,14 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="text-3xl font-black text-foreground">{statsClassique.count}</div>
-              <div className="text-xs text-muted-foreground">voyages effectués</div>
+              <div className="text-xs text-muted-foreground">voyages effectues</div>
               <div className="pt-2 space-y-1 border-t border-primary/10">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Recettes</span>
                   <span className="font-bold text-primary">{fmt(statsClassique.revenue)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Net versé</span>
+                  <span className="text-muted-foreground">Net verse</span>
                   <span className="font-bold text-emerald-600">{fmt(statsClassique.net)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -442,14 +451,14 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="text-3xl font-black text-foreground">{statsVIP.count}</div>
-              <div className="text-xs text-muted-foreground">voyages effectués</div>
+              <div className="text-xs text-muted-foreground">voyages effectues</div>
               <div className="pt-2 space-y-1 border-t border-amber-100 dark:border-amber-900/30">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Recettes</span>
                   <span className="font-bold text-amber-600">{fmt(statsVIP.revenue)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Net versé</span>
+                  <span className="text-muted-foreground">Net verse</span>
                   <span className="font-bold text-emerald-600">{fmt(statsVIP.net)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -464,7 +473,7 @@ export default function ReportsPage() {
           <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-transparent border-l-4 border-l-emerald-500">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" /> TOTAL GÉNÉRAL
+                <TrendingUp className="h-4 w-4" /> TOTAL GENERAL
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -476,11 +485,11 @@ export default function ReportsPage() {
                   <span className="font-bold text-emerald-600">{fmt(statsTotal.revenue)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Dépenses totales</span>
-                  <span className="font-bold text-destructive">− {fmt(statsTotal.expenses)}</span>
+                  <span className="text-muted-foreground">Depenses totales</span>
+                  <span className="font-bold text-destructive">- {fmt(statsTotal.expenses)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t border-emerald-200 dark:border-emerald-800 pt-1 mt-1">
-                  <span>Net total versé</span>
+                  <span>Net total verse</span>
                   <span className="text-emerald-600 text-base">{fmt(statsTotal.net)}</span>
                 </div>
               </div>
@@ -519,7 +528,7 @@ export default function ReportsPage() {
                         {fmtCompact(a.classique)} FCFA
                       </td>
                       <td className="py-2.5 px-3 text-right font-semibold text-amber-600">
-                        {a.vip > 0 ? `${fmtCompact(a.vip)} FCFA` : '—'}
+                        {a.vip > 0 ? `${fmtCompact(a.vip)} FCFA` : '-'}
                       </td>
                       <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
                         {fmtCompact(a.net)} FCFA
@@ -572,7 +581,7 @@ export default function ReportsPage() {
               ))}
             </select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredRecords.length} résultat{filteredRecords.length !== 1 ? 's' : ''}
+              {filteredRecords.length} resultat{filteredRecords.length !== 1 ? 's' : ''}
             </span>
           </div>
         </CardContent>
@@ -582,8 +591,8 @@ export default function ReportsPage() {
       <Card className="border-0 shadow-md">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Détail des Productions
+            <FileText className="h-5 w-5" />
+            Detail des Productions
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -596,26 +605,20 @@ export default function ReportsPage() {
           ) : filteredRecords.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-20" />
-              <p className="font-medium">Aucune production trouvée</p>
+              <p className="font-medium">Aucune production trouvee</p>
               <p className="text-sm mt-1 opacity-70">
-                Modifiez les filtres ou la période sélectionnée
+                Modifiez les filtres ou la periode selectionnee
               </p>
             </div>
           ) : (
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
               {filteredRecords.map((r) => {
-                const net =
-                  Number(r.net_to_deposit) ||
-                  Number(r.revenue) -
-                    (Number(r.expense_fuel) +
-                      Number(r.expense_toll) +
-                      Number(r.expense_washing) +
-                      Number(r.expense_others));
                 const expenses =
                   Number(r.expense_fuel) +
                   Number(r.expense_toll) +
                   Number(r.expense_washing) +
                   Number(r.expense_others);
+                const net = Number(r.net_to_deposit) || Number(r.revenue) - expenses;
 
                 return (
                   <div
@@ -648,7 +651,7 @@ export default function ReportsPage() {
                               : 'bg-orange-100 text-orange-700'
                           )}
                         >
-                          {r.status === 'VALIDATED' ? '✓ Validé' : '⏳ Brouillon'}
+                          {r.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-2">
@@ -658,24 +661,15 @@ export default function ReportsPage() {
                         <span>·</span>
                         <span>{new Date(r.date).toLocaleDateString('fr-FR')}</span>
                         <span>·</span>
-                        <span className="text-destructive">
-                          − {fmt(expenses)}
-                        </span>
+                        <span className="text-destructive">- {fmt(expenses)}</span>
                       </div>
                     </div>
 
                     <div className="text-right flex-shrink-0 space-y-0.5">
                       <div className="text-xs text-muted-foreground">Recette</div>
-                      <div className="text-sm font-semibold">
-                        {fmt(Number(r.revenue))}
-                      </div>
+                      <div className="text-sm font-semibold">{fmt(Number(r.revenue))}</div>
                       <div className="text-xs text-muted-foreground">Net</div>
-                      <div
-                        className={cn(
-                          'font-black text-sm',
-                          net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
-                        )}
-                      >
+                      <div className={cn('font-black text-sm', net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive')}>
                         {fmt(net)}
                       </div>
                     </div>
