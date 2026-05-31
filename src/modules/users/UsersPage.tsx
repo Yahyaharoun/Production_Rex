@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -77,7 +77,7 @@ export default function UsersPage() {
       if (isChef && chefAgenceId) {
         setAgenceId(chefAgenceId);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setLoading(false);
@@ -142,7 +142,7 @@ export default function UsersPage() {
       if (isPDG) setAgenceId('none');
 
       fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur de création', { description: err.message });
     } finally {
       setCreating(false);
@@ -157,7 +157,7 @@ export default function UsersPage() {
       if (error) throw error;
       toast.success('Utilisateur supprimé');
       fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur de suppression', { description: err.message });
     } finally {
       setLoading(false);
@@ -173,7 +173,7 @@ export default function UsersPage() {
       if (error) throw error;
       toast.success('Statut mis à jour', { description: `L'utilisateur a été ${newStatus ? 'activé' : 'suspendu'}.` });
       fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur de modification', { description: err.message });
     } finally {
       setLoading(false);
@@ -371,3 +371,4 @@ export default function UsersPage() {
     </div>
   );
 }
+
