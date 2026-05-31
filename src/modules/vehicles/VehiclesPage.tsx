@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -135,7 +135,7 @@ export default function VehiclesPage() {
       const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
       if (error) throw error;
       setVehicles(data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setLoading(false);
@@ -152,7 +152,7 @@ export default function VehiclesPage() {
       toast.success('Véhicule ajouté');
       setShowForm(false);
       fetchVehicles();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setSaving(false);
@@ -168,7 +168,7 @@ export default function VehiclesPage() {
       toast.success('Véhicule modifié');
       setEditingVehicle(null);
       fetchVehicles();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setSaving(false);
@@ -183,7 +183,7 @@ export default function VehiclesPage() {
       if (error) throw error;
       toast.success('Véhicule supprimé');
       fetchVehicles();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
     } finally {
       setLoading(false);
@@ -303,3 +303,4 @@ export default function VehiclesPage() {
     </div>
   );
 }
+
