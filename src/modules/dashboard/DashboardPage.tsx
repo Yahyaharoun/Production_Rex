@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿﻿import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from '../../components/ui/button';
 import { Bus, Banknote, MapPin, TrendingUp, CheckCircle, ArrowUpRight, Loader2, Calendar, Database } from "lucide-react";
@@ -14,9 +14,9 @@ export default function DashboardPage() {
     revenue: 0, expenses: 0, net: 0,
     vehiclesActive: 0, vehiclesTotal: 0,
     driversAvailable: 0, alerts: 0,
-    recentDepartures: [] as any[],
+    recentDepartures: [] as unknown[],
     weeklyTrend: [] as number[],
-    todayEntries: [] as any[]
+    todayEntries: [] as unknown[]
   });
 
   const fetchDashboard = async (isRefresh = false) => {
@@ -311,4 +311,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 
