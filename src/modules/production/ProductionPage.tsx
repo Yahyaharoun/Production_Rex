@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -136,7 +136,7 @@ export default function ProductionPage() {
         const myAgence = data.find((a: Agency) => a.id === userAgenceId);
         if (myAgence) setValue('ligne', myAgence.name);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = err?.message || 'Connexion à la base de données impossible';
       setAgenciesError(`Erreur de chargement des agences : ${msg}`);
       setAgencies([]);
@@ -164,7 +164,7 @@ export default function ProductionPage() {
       const { data, error } = await query;
       if (error) throw error;
       setHistory(data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur de chargement de l\'historique', { description: err.message });
     } finally {
       setLoadingHistory(false);
@@ -230,7 +230,7 @@ export default function ProductionPage() {
         driverName: '',
         passengersAtDeparture: 0,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erreur d\'enregistrement', { description: err.message });
     } finally {
       setIsSubmitting(false);
@@ -659,3 +659,4 @@ export default function ProductionPage() {
     </div>
   );
 }
+
