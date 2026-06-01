@@ -152,7 +152,7 @@ export default function ProductionPage() {
         if (myAgence) setValue('ligne', myAgence.name, { shouldValidate: true });
       }
     } catch (err: unknown) {
-      const msg = err?.message || 'Connexion Ã  la base de donnÃ©es impossible';
+      const msg = (err as any)?.message || 'Connexion à la base de données impossible';
       setAgenciesError(`Erreur de chargement des agences : ${msg}`);
       setAgencies([]);
       console.error('[ProductionPage] fetchAgencies error:', err);
