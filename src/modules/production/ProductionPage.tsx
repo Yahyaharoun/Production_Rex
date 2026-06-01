@@ -219,7 +219,6 @@ export default function ProductionPage() {
         ligne: data.ligne,
         agence_id: agenceId,
         production_type: data.productionType,
-        price_per_ticket: pricePerTicket,
       });
 
       if (error) throw error;

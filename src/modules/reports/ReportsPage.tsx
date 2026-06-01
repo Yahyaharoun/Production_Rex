@@ -44,12 +44,7 @@ type ReportPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
 
 //  Helpers 
 const fmt = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
-const fmtCompact = (n: number) =>
-  n >= 1_000_000
-    ? (n / 1_000_000).toFixed(1) + 'M'
-    : n >= 1_000
-    ? (n / 1_000).toFixed(0) + 'k'
-    : n.toString();
+const fmtCompact = (n: number) => n.toLocaleString('fr-FR');
 
 //  Composant principal 
 export default function ReportsPage() {
