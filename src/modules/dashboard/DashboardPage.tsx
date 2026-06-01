@@ -12,7 +12,6 @@ export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const roleStr = String(user?.role || '').toUpperCase().trim();
   const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
-  const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState({
