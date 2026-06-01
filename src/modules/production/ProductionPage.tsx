@@ -38,7 +38,7 @@ const productionSchema = z.object({
   totalSeats: z.coerce.number().min(1, 'CapacitÃ© requise'),
   passengersAtDeparture: z.coerce.number().min(0, 'Nombre de passagers requis'),
   productionType: z.enum(['CLASSIQUE', 'VIP'], {
-    required_error: 'SÃ©lectionnez le type de production',
+    message: 'Sélectionnez le type de production',
   }),
   fuel: z.coerce.number().min(0).default(0),
   toll: z.coerce.number().min(0).default(0),
@@ -98,7 +98,7 @@ export default function ProductionPage() {
     register, control, handleSubmit, reset, setValue,
     formState: { errors },
   } = useForm<ProductionFormValues>({
-    resolver: zodResolver(productionSchema),
+    resolver: zodResolver(productionSchema) as any,
     defaultValues: {
       totalSeats: 30,
       fuel: 0,

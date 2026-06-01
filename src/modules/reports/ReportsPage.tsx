@@ -90,7 +90,7 @@ export default function ReportsPage() {
         .order('date', { ascending: false });
 
       if (!isAdmin && user?.agenceId) {
-        query = query.eq('agence_id', user.agenceId);
+        query = query.eq('agence_id', user.agenceId as string);
       }
 
       const now = new Date();

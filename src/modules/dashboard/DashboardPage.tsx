@@ -18,9 +18,9 @@ export default function DashboardPage() {
     revenue: 0, expenses: 0, net: 0,
     vehiclesActive: 0, vehiclesTotal: 0,
     driversAvailable: 0, alerts: 0,
-    recentDepartures: [] as unknown[],
+    recentDepartures: [] as any[],
     weeklyTrend: [] as number[],
-    todayEntries: [] as unknown[]
+    todayEntries: [] as any[]
   });
 
   const fetchDashboard = async (isRefresh = false) => {
@@ -245,7 +245,7 @@ export default function DashboardPage() {
                    <p className="font-bold">Aucune donnée stockée.</p>
                 </div>
               ) : (
-                data.recentDepartures.map((prod, i) => (
+                data.recentDepartures.map((prod: any, i) => (
                   <div key={i} className="flex items-center group p-4 rounded-3xl hover:bg-secondary/40 transition-all border border-transparent hover:border-border/50">
                     <div className="h-14 w-14 rounded-2xl bg-white border border-border shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
                       <Bus className="h-6 w-6 text-primary" />
@@ -290,7 +290,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {data.todayEntries.map((e, i) => (
+                {data.todayEntries.map((e: any, i) => (
                   <tr key={e.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-8 py-5 font-black text-muted-foreground text-xs">Voyage #{data.todayEntries.length - i}</td>
                     <td className="px-8 py-5 font-black text-foreground">{e.immatriculation}</td>
