@@ -97,7 +97,7 @@
       @keyframes spin { to { transform: rotate(360deg); } }
       #root { min-height: 100vh; }
     </style>
-    <script type="module" crossorigin src="/assets/index-CVbgpKQA.js"></script>
+    <script type="module" crossorigin src="/assets/index-BuFFKvoY.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-D2YL9HPY.css">
   <script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
@@ -111,21 +111,9 @@
 
     <!-- Application React -->
     <div id="root"></div>
+    <!-- Cache buster: 2026-06-01-v2 -->
 
-    <!-- Service Worker Registration -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(function(reg) {
-              console.log('[Rex SW] Enregistré avec succès. Scope:', reg.scope);
-            })
-            .catch(function(err) {
-              console.warn('[Rex SW] Erreur d\'enregistrement:', err);
-            });
-        });
-      }
-
       // Masquer le splash screen au chargement de l'app
       window.addEventListener('load', function() {
         setTimeout(function() {
