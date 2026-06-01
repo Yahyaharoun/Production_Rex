@@ -1,13 +1,14 @@
-﻿import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import {
   LayoutDashboard, CarFront, Users, FileText,
-  LogOut, Menu, X, WifiOff
+  LogOut, Menu, X, WifiOff, Download
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { supabase } from '../lib/supabase';
+import { Role } from '../types';
 
 // ── Logo Rex ──────────────────────────────────────────────────────────────
 const RexLogo = ({ size = 32 }: { size?: number }) => (
@@ -62,8 +63,35 @@ const OnlineStatus = () => {
 
 export const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
   const { user, login, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  // PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   // Rafraîchir le profil au montage
   useEffect(() => {
@@ -80,7 +108,7 @@ export const MainLayout = () => {
             id: user.id,
             email: user.email,
             name: data.name || 'Utilisateur',
-            role: (data.role?.toUpperCase() || 'CHAUFFEUR') as unknown,
+            role: (data.role?.toUpperCase() || 'CHAUFFEUR') as Role,
             agenceId: data.agence_id || '',
             isActive: data.is_active ?? true,
           },
@@ -183,6 +211,18 @@ export const MainLayout = () => {
           <LogOut className="h-4 w-4 mr-2" />
           Se déconnecter
         </Button>
+
+        {isInstallable && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleInstallClick}
+            className="w-full justify-start mt-2 bg-primary text-white hover:bg-primary/90"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Installer l'application
+          </Button>
+        )}
       </div>
     </div>
   );

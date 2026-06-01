@@ -109,22 +109,10 @@
 
     <!-- Application React -->
     <div id="root"></div>
+    <!-- Cache buster: 2026-06-01-v2 -->
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- Service Worker Registration -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(function(reg) {
-              console.log('[Rex SW] Enregistré avec succès. Scope:', reg.scope);
-            })
-            .catch(function(err) {
-              console.warn('[Rex SW] Erreur d\'enregistrement:', err);
-            });
-        });
-      }
-
       // Masquer le splash screen au chargement de l'app
       window.addEventListener('load', function() {
         setTimeout(function() {

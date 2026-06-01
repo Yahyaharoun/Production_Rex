@@ -43,9 +43,9 @@ export default function DashboardPage() {
       let trendQuery = supabase.from('productions').select('date, revenue').eq('status', 'VALIDATED').gte('date', sevenDaysAgoStr);
 
       if (!isAdmin && user?.agenceId) {
-        todayQuery = todayQuery.eq('agence_id', user.agenceId);
-        recentQuery = recentQuery.eq('agence_id', user.agenceId);
-        trendQuery = trendQuery.eq('agence_id', user.agenceId);
+        todayQuery = todayQuery.eq('agence_id', user.agenceId as string);
+        recentQuery = recentQuery.eq('agence_id', user.agenceId as string);
+        trendQuery = trendQuery.eq('agence_id', user.agenceId as string);
       }
 
       const [todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes] = await Promise.all([

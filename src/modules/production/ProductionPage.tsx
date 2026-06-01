@@ -24,7 +24,7 @@ const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
   if (name.includes('mimboman') || name.includes('akonolinga')) {
     return 1500;
   }
-  if (name.includes('ayos')) {
+  if (name.includes('mimbone') || name.includes('ayos')) {
     return 2000;
   }
   // Prix par dÃ©faut
@@ -121,7 +121,7 @@ export default function ProductionPage() {
   const ligne = useWatch({ control, name: 'ligne', defaultValue: '' }) || '';
 
   // â”€â”€ Calculs automatiques â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const pricePerTicket = getPrice(ligne, productionType);
+  const pricePerTicket = getPrice(ligne, productionType as 'CLASSIQUE' | 'VIP');
   const revenue = Number(passengersAtDeparture) * pricePerTicket;
   const totalExpenses = Number(fuel) + Number(toll) + Number(washing) + Number(others);
   const netToDeposit = revenue - totalExpenses;
