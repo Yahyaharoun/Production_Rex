@@ -148,7 +148,7 @@ export default function ProductionPage() {
       // Pré-sélectionner l'agence de l'utilisateur
       if (userAgenceId) {
         const myAgence = data.find((a: Agency) => a.id === userAgenceId);
-        if (myAgence) setValue('ligne', myAgence.name);
+        if (myAgence) setValue('ligne', myAgence.name, { shouldValidate: true });
       }
     } catch (err: unknown) {
       const msg = err?.message || 'Connexion à la base de données impossible';
@@ -333,19 +333,25 @@ export default function ProductionPage() {
               )}
 
               {!agenciesLoading && (
-                <select
-                  id="ligne"
-                  {...register('ligne')}
-                  disabled={agenciesLoading || agencies.length === 0}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">-- Sélectionner une agence --</option>
-                  {agencies.map((a) => (
-                    <option key={a.id} value={a.name}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+                isAdmin ? (
+                  <select
+                    id="ligne"
+                    {...register('ligne')}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">-- Sélectionner une agence --</option>
+                    {agencies.map((a) => (
+                      <option key={a.id} value={a.name}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-2 text-sm font-bold text-foreground">
+                    {agencies.find(a => a.id === userAgenceId)?.name || 'Agence non assignée'}
+                    <input type="hidden" {...register('ligne')} />
+                  </div>
+                )
               )}
               {errors.ligne && (
                 <p className="text-xs text-destructive flex items-center gap-1">

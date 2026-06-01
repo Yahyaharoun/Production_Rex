@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -40,7 +40,7 @@ export default function UsersPage() {
   const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE'>('CAISSIERE');
   const [phone, setPhone] = useState('');
   const [cni, setCni] = useState('');
-  const [agenceId, setAgenceId] = useState<string>('none');
+  const [agenceId, setAgenceId] = useState<string>('');
 
   const isPDG = user?.role === 'PDG';
   const isChef = user?.role === 'CHEF_AGENCE';
@@ -73,9 +73,11 @@ export default function UsersPage() {
       setProfiles(fetchedProfiles);
       setAgencies(agenciesRes.data || []);
 
-      // Pre-select chef's own agency
+      // Pre-select chef's own agency or default for PDG
       if (isChef && chefAgenceId) {
         setAgenceId(chefAgenceId);
+      } else if (isPDG && agenciesRes.data && agenciesRes.data.length > 0) {
+        setAgenceId(agenciesRes.data[0].id);
       }
     } catch (err: unknown) {
       toast.error('Erreur', { description: err.message });
@@ -101,12 +103,18 @@ export default function UsersPage() {
       return;
     }
 
+    // Verify PDG assigns a valid agency
+    if (isPDG && (!agenceId || agenceId === 'none')) {
+      toast.error('Champs manquants', { description: 'Veuillez assigner une agence (Ligne) à cet utilisateur.' });
+      return;
+    }
+
     setCreating(true);
     try {
       // Force role to CAISSIERE for chef
       const targetRole = isPDG ? role : 'CAISSIERE';
       // Force agence to chef's own agence if chef
-      const targetAgenceId = isPDG ? (agenceId === 'none' ? null : agenceId) : chefAgenceId;
+      const targetAgenceId = isPDG ? agenceId : chefAgenceId;
 
       // Use Edge Function (bypasses PostgREST 404 issue with RPCs)
       const { data: { session } } = await supabase.auth.getSession();
@@ -139,7 +147,7 @@ export default function UsersPage() {
       setName('');
       setPhone('');
       setCni('');
-      if (isPDG) setAgenceId('none');
+      if (isPDG && agencies.length > 0) setAgenceId(agencies[0].id);
 
       fetchData();
     } catch (err: unknown) {
@@ -240,8 +248,7 @@ export default function UsersPage() {
                   <Label htmlFor="agence">Agence / Ligne</Label>
                   {isPDG ? (
                     <select id="agence" value={agenceId} onChange={(e) => setAgenceId(e.target.value)}
-                      className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                      <option value="none">Aucune</option>
+                      className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required>
                       {agencies.map(a => (
                         <option key={a.id} value={a.id}>{a.name}</option>
                       ))}
