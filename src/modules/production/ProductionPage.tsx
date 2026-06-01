@@ -88,8 +88,9 @@ export default function ProductionPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const isAdmin = user?.role === 'PDG';
-  const isChef = user?.role === 'CHEF_AGENCE';
+  const roleStr = String(user?.role || '').toUpperCase().trim();
+  const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
+  const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
   const canValidate = isAdmin || isChef;
   const userAgenceId = user?.agenceId || '';
 
@@ -171,7 +172,7 @@ export default function ProductionPage() {
         .limit(100);
 
       // Filtrer par agence pour les non-admins
-      if (!isAdmin && !isChef && userAgenceId) {
+      if (!isAdmin && userAgenceId) {
         query = query.eq('agence_id', userAgenceId);
       }
 

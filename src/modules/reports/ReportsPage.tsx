@@ -54,7 +54,10 @@ const fmtCompact = (n: number) =>
 // â”€â”€â”€ Composant principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ReportsPage() {
   const user = useAuthStore((s) => s.user);
-  const canValidate = user?.role === 'PDG' || user?.role === 'CHEF_AGENCE';
+  const roleStr = String(user?.role || '').toUpperCase().trim();
+  const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
+  const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
+  const canValidate = isAdmin || isChef;
 
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
@@ -85,6 +88,10 @@ export default function ReportsPage() {
         .select('*')
         .eq('status', 'VALIDATED')
         .order('date', { ascending: false });
+
+      if (!isAdmin && user?.agenceId) {
+        query = query.eq('agence_id', user.agenceId);
+      }
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];

@@ -6,8 +6,13 @@ import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export default function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
+  const roleStr = String(user?.role || '').toUpperCase().trim();
+  const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
+  const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState({
@@ -34,12 +39,22 @@ export default function DashboardPage() {
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
       // Exécuter toutes les requêtes en parallèle pour la performance
+      let todayQuery = supabase.from('productions').select('*').eq('date', today).eq('status', 'VALIDATED');
+      let recentQuery = supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').eq('status', 'VALIDATED').order('created_at', { ascending: false }).limit(5);
+      let trendQuery = supabase.from('productions').select('date, revenue').eq('status', 'VALIDATED').gte('date', sevenDaysAgoStr);
+
+      if (!isAdmin && user?.agenceId) {
+        todayQuery = todayQuery.eq('agence_id', user.agenceId);
+        recentQuery = recentQuery.eq('agence_id', user.agenceId);
+        trendQuery = trendQuery.eq('agence_id', user.agenceId);
+      }
+
       const [todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes] = await Promise.all([
-        supabase.from('productions').select('*').eq('date', today).eq('status', 'VALIDATED'),
-        supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').eq('status', 'VALIDATED').order('created_at', { ascending: false }).limit(5),
+        todayQuery,
+        recentQuery,
         supabase.from('vehicles').select('status'),
         supabase.from('drivers').select('status'),
-        supabase.from('productions').select('date, revenue').eq('status', 'VALIDATED').gte('date', sevenDaysAgoStr)
+        trendQuery
       ]);
 
       if (todayProdsRes.error) throw todayProdsRes.error;
