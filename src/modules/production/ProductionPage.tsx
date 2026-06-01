@@ -179,7 +179,7 @@ export default function ProductionPage() {
       if (error) throw error;
       setHistory(data || []);
     } catch (err: unknown) {
-      toast.error('Erreur de chargement de l\'historique', { description: err.message });
+      toast.error('Erreur de chargement de l\'historique', { description: (err as any)?.message });
     } finally {
       setLoadingHistory(false);
     }
@@ -245,7 +245,7 @@ export default function ProductionPage() {
         passengersAtDeparture: 0,
       });
     } catch (err: unknown) {
-      toast.error('Erreur d\'enregistrement', { description: err.message });
+      toast.error('Erreur d\'enregistrement', { description: (err as any)?.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -679,4 +679,5 @@ export default function ProductionPage() {
     </div>
   );
 }
+
 

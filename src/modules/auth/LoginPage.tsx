@@ -1,4 +1,4 @@
-ï»¿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
@@ -29,7 +29,7 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
-      console.log('[REX-AUTH] Authentification Supabase rÃ©ussie, rÃ©cupÃ©ration du profil...');
+      console.log('[REX-AUTH] Authentification Supabase réussie, récupération du profil...');
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -37,16 +37,16 @@ export default function LoginPage() {
         .single();
       
       if (profileError && profileError.code !== 'PGRST116') {
-        console.error('[REX-AUTH] Erreur base de donnÃ©es (profil):', profileError);
-        toast.error('Erreur Base de DonnÃ©es', { description: profileError.message || 'ProblÃ¨me de schÃ©ma ou permissions.' });
+        console.error('[REX-AUTH] Erreur base de données (profil):', profileError);
+        toast.error('Erreur Base de Données', { description: profileError.message || 'Problème de schéma ou permissions.' });
       }
 
       if (profile && profile.is_active === false) {
-        console.warn('[REX-AUTH] Tentative de connexion sur un compte dÃ©sactivÃ©:', email);
-        throw new Error('Votre compte a Ã©tÃ© dÃ©sactivÃ©. Veuillez contacter la direction.');
+        console.warn('[REX-AUTH] Tentative de connexion sur un compte désactivé:', email);
+        throw new Error('Votre compte a été désactivé. Veuillez contacter la direction.');
       }
       
-      console.log('[REX-AUTH] Profil chargÃ© avec succÃ¨s. RÃ´le:', profile?.role);
+      console.log('[REX-AUTH] Profil chargé avec succès. Rôle:', profile?.role);
       
       login({
         id: data.user.id,
@@ -57,12 +57,12 @@ export default function LoginPage() {
         isActive: profile?.is_active ?? true
       }, data.session.access_token);
 
-      toast.success('Connexion rÃ©ussie', { description: 'Bienvenue sur Production Rex' });
+      toast.success('Connexion réussie', { description: 'Bienvenue sur Production Rex' });
       navigate('/app/dashboard');
     } catch (err: unknown) {
-      console.error('[REX-AUTH] Erreur globale de login:', err.message);
-      toast.error('Ã‰chec de la connexion', { 
-        description: err.message || 'Identifiants incorrects ou problÃ¨me rÃ©seau.' 
+      console.error('[REX-AUTH] Erreur globale de login:', (err as any)?.message);
+      toast.error('Échec de la connexion', { 
+        description: (err as any)?.message || 'Identifiants incorrects ou problème réseau.' 
       });
     } finally {
       setLoading(false);
@@ -77,7 +77,7 @@ export default function LoginPage() {
             <Bus className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-2xl font-black tracking-tighter text-foreground">Production Rex</h1>
-          <p className="text-muted-foreground text-xs font-bold italic uppercase tracking-wider">AccÃ¨s SÃ©curisÃ©</p>
+          <p className="text-muted-foreground text-xs font-bold italic uppercase tracking-wider">Accès Sécurisé</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
@@ -109,14 +109,15 @@ export default function LoginPage() {
 
         <div className="text-center pt-4 border-t border-border/50">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            Â© 2026 Production Rex System
+            © 2026 Production Rex System
           </p>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Contactez votre administrateur pour obtenir un accÃ¨s.
+            Contactez votre administrateur pour obtenir un accès.
           </p>
         </div>
       </div>
     </div>
   );
 }
+
 

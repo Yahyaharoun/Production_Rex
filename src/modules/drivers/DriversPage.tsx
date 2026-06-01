@@ -1,4 +1,4 @@
-ï»¿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -58,7 +58,7 @@ function DriverForm({ mode, initial, vehicles, onSave, onCancel, saving }: {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Nom requis';
     if (!form.license_number.trim()) e.license_number = 'Permis requis';
-    if (!form.phone.trim()) e.phone = 'TÃ©lÃ©phone requis';
+    if (!form.phone.trim()) e.phone = 'Téléphone requis';
     setFormErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -85,13 +85,13 @@ function DriverForm({ mode, initial, vehicles, onSave, onCancel, saving }: {
             {errors.name && <p className="text-[10px] text-destructive font-black uppercase">{errors.name}</p>}
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">NumÃ©ro Permis *</Label>
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Numéro Permis *</Label>
             <Input value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })}
               className="bg-secondary/10 border-border rounded-xl h-11 font-bold text-sm" />
             {errors.license_number && <p className="text-[10px] text-destructive font-black uppercase">{errors.license_number}</p>}
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">TÃ©lÃ©phone *</Label>
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Téléphone *</Label>
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
               className="bg-secondary/10 border-border rounded-xl h-11 font-bold text-sm" />
             {errors.phone && <p className="text-[10px] text-destructive font-black uppercase">{errors.phone}</p>}
@@ -105,7 +105,7 @@ function DriverForm({ mode, initial, vehicles, onSave, onCancel, saving }: {
             </select>
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">VÃ©hicule</Label>
+            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Véhicule</Label>
             <select value={form.assigned_vehicle_id} onChange={(e) => setForm({ ...form, assigned_vehicle_id: e.target.value })}
               className="w-full rounded-xl bg-secondary/10 border border-border h-11 px-3 text-sm font-bold">
               <option value="none">Aucun</option>
@@ -160,7 +160,7 @@ export default function DriversPage() {
       setDrivers(driversRes.data || []);
       setVehicles(vehiclesRes.data || []);
     } catch (err: unknown) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur', { description: (err as any)?.message });
     } finally {
       setLoading(false);
     }
@@ -181,11 +181,11 @@ export default function DriversPage() {
       };
       const { error } = await supabase.from('drivers').insert(payload);
       if (error) throw error;
-      toast.success('Chauffeur ajoutÃ©');
+      toast.success('Chauffeur ajouté');
       setShowForm(false);
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur', { description: (err as any)?.message });
     } finally {
       setSaving(false);
     }
@@ -205,11 +205,11 @@ export default function DriversPage() {
       };
       const { error } = await supabase.from('drivers').update(payload).eq('id', editingDriver.id);
       if (error) throw error;
-      toast.success('Chauffeur mis Ã  jour');
+      toast.success('Chauffeur mis à jour');
       setEditingDriver(null);
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur', { description: (err as any)?.message });
     } finally {
       setSaving(false);
     }
@@ -221,10 +221,10 @@ export default function DriversPage() {
     try {
       const { error } = await supabase.from('drivers').delete().eq('id', id);
       if (error) throw error;
-      toast.success('Chauffeur supprimÃ©');
+      toast.success('Chauffeur supprimé');
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur', { description: (err as any)?.message });
     } finally {
       setLoading(false);
     }
@@ -248,7 +248,7 @@ export default function DriversPage() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-foreground">RÃ©pertoire Chauffeurs</h2>
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Répertoire Chauffeurs</h2>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Gestion des contrats et missions</p>
         </div>
         {canAddDelete && (
@@ -307,12 +307,12 @@ export default function DriversPage() {
                 <div className="bg-secondary/20 p-2 rounded-lg border border-border/50 flex items-center gap-2">
                   <Car className="h-3.5 w-3.5 text-primary" />
                   <div className="flex-1">
-                    <p className="text-[8px] font-black text-muted-foreground uppercase">VÃ©hicule assignÃ©</p>
+                    <p className="text-[8px] font-black text-muted-foreground uppercase">Véhicule assigné</p>
                     <p className="text-xs font-black text-foreground">{driver.vehicles?.immatriculation || 'AUCUN'}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button className="flex-1 bg-foreground text-white rounded-lg h-9 font-black text-xs" onClick={() => setSelectedDriver(driver)}>DÃ©tails</Button>
+                  <Button className="flex-1 bg-foreground text-white rounded-lg h-9 font-black text-xs" onClick={() => setSelectedDriver(driver)}>Détails</Button>
                   {canAddDelete && (
                     <>
                       <Button variant="outline" className="border-border rounded-lg h-9 w-9 p-0" onClick={() => setEditingDriver(driver)}>
@@ -351,12 +351,12 @@ export default function DriversPage() {
                   <span className="font-black text-foreground">{selectedDriver.type}</span>
                 </div>
                 <div className="flex justify-between text-xs py-2 border-b border-border/50">
-                  <span className="text-muted-foreground font-bold">TÃ©lÃ©phone</span>
+                  <span className="text-muted-foreground font-bold">Téléphone</span>
                   <span className="font-black text-foreground">{selectedDriver.phone}</span>
                 </div>
                 <div className="flex justify-between text-xs py-2 border-b border-border/50">
-                  <span className="text-muted-foreground font-bold">VÃ©hicule</span>
-                  <span className="font-black text-primary">{selectedDriver.vehicles?.immatriculation || 'NON ASSIGNÃ‰'}</span>
+                  <span className="text-muted-foreground font-bold">Véhicule</span>
+                  <span className="font-black text-primary">{selectedDriver.vehicles?.immatriculation || 'NON ASSIGNÉ'}</span>
                 </div>
               </div>
             </div>
@@ -366,4 +366,5 @@ export default function DriversPage() {
     </div>
   );
 }
+
 

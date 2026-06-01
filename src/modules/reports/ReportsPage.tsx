@@ -107,7 +107,7 @@ export default function ReportsPage() {
       if (error) throw error;
       setRecords(data || []);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+      const msg = err instanceof Error ? (err as any)?.message : 'Erreur inconnue';
       toast.error('Erreur de chargement', { description: msg });
     } finally {
       setLoading(false);
@@ -318,7 +318,7 @@ export default function ReportsPage() {
       doc.save(`rapport-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`);
       toast.success('Rapport PDF exporte avec succes !');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+      const msg = err instanceof Error ? (err as any)?.message : 'Erreur inconnue';
       toast.error('Erreur export PDF', { description: msg });
     } finally {
       setLoading(false);
@@ -683,3 +683,4 @@ export default function ReportsPage() {
     </div>
   );
 }
+

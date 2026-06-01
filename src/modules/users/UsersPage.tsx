@@ -80,7 +80,7 @@ export default function UsersPage() {
         setAgenceId(agenciesRes.data[0].id);
       }
     } catch (err: unknown) {
-      toast.error('Erreur', { description: err.message });
+      toast.error('Erreur', { description: (err as any)?.message });
     } finally {
       setLoading(false);
     }
@@ -151,7 +151,7 @@ export default function UsersPage() {
 
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur de création', { description: err.message });
+      toast.error('Erreur de création', { description: (err as any)?.message });
     } finally {
       setCreating(false);
     }
@@ -166,7 +166,7 @@ export default function UsersPage() {
       toast.success('Utilisateur supprimé');
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur de suppression', { description: err.message });
+      toast.error('Erreur de suppression', { description: (err as any)?.message });
     } finally {
       setLoading(false);
     }
@@ -182,7 +182,7 @@ export default function UsersPage() {
       toast.success('Statut mis à jour', { description: `L'utilisateur a été ${newStatus ? 'activé' : 'suspendu'}.` });
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur de modification', { description: err.message });
+      toast.error('Erreur de modification', { description: (err as any)?.message });
     } finally {
       setLoading(false);
     }
@@ -378,4 +378,5 @@ export default function UsersPage() {
     </div>
   );
 }
+
 
