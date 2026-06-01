@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
 import {
   FileText, History, Loader2, Bus, Trash2, Calculator,
-  Save, CheckCircle, MapPin, User, Star, AlertCircle, RefreshCw
+  Save, CheckCircle, MapPin, User, Star, AlertCircle, RefreshCw, Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
@@ -257,10 +257,22 @@ export default function ProductionPage() {
     if (!confirm('Voulez-vous vraiment supprimer cette production ?')) return;
     const { error } = await supabase.from('productions').delete().eq('id', id);
     if (!error) {
-      toast.success('Production supprimÃ©e');
+      toast.success('Production supprimée');
       fetchHistory();
     } else {
       toast.error('Erreur de suppression', { description: error.message });
+    }
+  };
+
+  const handleValidate = async (id: string) => {
+    if (!canValidate) return;
+    if (!confirm('Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.')) return;
+    const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
+    if (!error) {
+      toast.success('Production validée !');
+      fetchHistory();
+    } else {
+      toast.error('Erreur de validation', { description: error.message });
     }
   };
 
@@ -659,15 +671,28 @@ export default function ProductionPage() {
                     </div>
 
                     {canValidate && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 flex-shrink-0"
-                        onClick={() => handleDelete(rec.id)}
-                        title="Supprimer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex flex-col gap-1">
+                        {rec.status !== 'VALIDATED' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-100 flex-shrink-0"
+                            onClick={() => handleValidate(rec.id)}
+                            title="Valider"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 flex-shrink-0"
+                          onClick={() => handleDelete(rec.id)}
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ))}

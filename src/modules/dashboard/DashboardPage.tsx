@@ -35,11 +35,11 @@ export default function DashboardPage() {
 
       // Exécuter toutes les requêtes en parallèle pour la performance
       const [todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes] = await Promise.all([
-        supabase.from('productions').select('*').eq('date', today),
-        supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('productions').select('*').eq('date', today).eq('status', 'VALIDATED'),
+        supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').eq('status', 'VALIDATED').order('created_at', { ascending: false }).limit(5),
         supabase.from('vehicles').select('status'),
         supabase.from('drivers').select('status'),
-        supabase.from('productions').select('date, revenue').gte('date', sevenDaysAgoStr)
+        supabase.from('productions').select('date, revenue').eq('status', 'VALIDATED').gte('date', sevenDaysAgoStr)
       ]);
 
       if (todayProdsRes.error) throw todayProdsRes.error;

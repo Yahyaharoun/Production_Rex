@@ -83,6 +83,7 @@ export default function ReportsPage() {
       let query = supabase
         .from('productions')
         .select('*')
+        .eq('status', 'VALIDATED')
         .order('date', { ascending: false });
 
       const now = new Date();
