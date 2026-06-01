@@ -64,7 +64,7 @@ export default function UsersPage() {
         // PDG voit tout sauf les autres PDG
         fetchedProfiles = fetchedProfiles.filter(p => p.role !== 'PDG' || p.id === user?.id);
       } else if (isChef) {
-        // Chef voit uniquement les caissiÃ¨res de SA propre agence
+        // Chef voit uniquement les caissières de SA propre agence
         fetchedProfiles = fetchedProfiles.filter(p =>
           p.role === 'CAISSIERE' && p.agence_id === chefAgenceId
         );
@@ -99,13 +99,13 @@ export default function UsersPage() {
 
     // Chef can only create CAISSIERE for their own agency
     if (isChef && agenceId !== chefAgenceId && chefAgenceId) {
-      toast.error('AccÃ¨s refusÃ©', { description: 'Vous ne pouvez crÃ©er des caissiÃ¨res que pour votre propre agence.' });
+      toast.error('Accès refusé', { description: 'Vous ne pouvez créer des caissières que pour votre propre agence.' });
       return;
     }
 
     // Verify PDG assigns a valid agency
     if (isPDG && (!agenceId || agenceId === 'none')) {
-      toast.error('Champs manquants', { description: 'Veuillez assigner une agence (Ligne) Ã  cet utilisateur.' });
+      toast.error('Champs manquants', { description: 'Veuillez assigner une agence (Ligne) à cet utilisateur.' });
       return;
     }
 
@@ -137,10 +137,10 @@ export default function UsersPage() {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Erreur lors de la crÃ©ation');
+      if (!response.ok) throw new Error(result.error || 'Erreur lors de la création');
       
 
-      toast.success('Compte crÃ©Ã©', { description: `L'utilisateur ${name} a Ã©tÃ© ajoutÃ© avec succÃ¨s.` });
+      toast.success('Compte créé', { description: `L'utilisateur ${name} a été ajouté avec succès.` });
 
       setEmail('');
       setPassword('');
@@ -151,19 +151,19 @@ export default function UsersPage() {
 
       fetchData();
     } catch (err: unknown) {
-      toast.error('Erreur de crÃ©ation', { description: (err as any)?.message });
+      toast.error('Erreur de création', { description: (err as any)?.message });
     } finally {
       setCreating(false);
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irrÃ©versible.')) return;
+    if (!window.confirm('Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irréversible.')) return;
     setLoading(true);
     try {
       const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
       if (error) throw error;
-      toast.success('Utilisateur supprimÃ©');
+      toast.success('Utilisateur supprimé');
       fetchData();
     } catch (err: unknown) {
       toast.error('Erreur de suppression', { description: (err as any)?.message });
@@ -179,7 +179,7 @@ export default function UsersPage() {
     try {
       const { error } = await supabase.rpc('admin_toggle_user_status', { target_user_id: userId, new_status: newStatus });
       if (error) throw error;
-      toast.success('Statut mis Ã  jour', { description: `L'utilisateur a Ã©tÃ© ${newStatus ? 'activÃ©' : 'suspendu'}.` });
+      toast.success('Statut mis à jour', { description: `L'utilisateur a été ${newStatus ? 'activé' : 'suspendu'}.` });
       fetchData();
     } catch (err: unknown) {
       toast.error('Erreur de modification', { description: (err as any)?.message });
@@ -196,20 +196,20 @@ export default function UsersPage() {
         <h2 className="text-3xl font-black tracking-tight text-foreground">Gestion des Comptes</h2>
         <p className="text-muted-foreground mt-1 font-medium">
           {isPDG
-            ? 'CrÃ©ez et gÃ©rez les accÃ¨s au systÃ¨me (Chefs d\'agence & CaissiÃ¨res).'
-            : `GÃ©rez les caissiÃ¨res de votre agence${myAgenceName ? ` â€” ${myAgenceName}` : ''}.`}
+            ? 'Créez et gérez les accès au système (Chefs d\'agence & Caissières).'
+            : `Gérez les caissières de votre agence${myAgenceName ? `  ${myAgenceName}` : ''}.`}
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Formulaire de crÃ©ation */}
+        {/* Formulaire de création */}
         <Card className="bg-white border-border shadow-sm rounded-2xl h-fit">
           <CardHeader className="pb-4 border-b border-border/50">
             <CardTitle className="text-foreground flex items-center font-black text-lg">
               <UserPlus className="mr-2 h-5 w-5 text-primary" /> Nouveau Compte
             </CardTitle>
             <CardDescription>
-              {isPDG ? 'Ajoutez un chef d\'agence ou une caissiÃ¨re.' : 'Ajoutez une caissiÃ¨re Ã  votre agence.'}
+              {isPDG ? 'Ajoutez un chef d\'agence ou une caissière.' : 'Ajoutez une caissière à votre agence.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
@@ -226,21 +226,21 @@ export default function UsersPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">Mot de passe provisoire</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" className="bg-secondary/20 border-border rounded-xl h-11" required />
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="⬢⬢⬢⬢⬢⬢⬢⬢" className="bg-secondary/20 border-border rounded-xl h-11" required />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="role">RÃ´le</Label>
+                  <Label htmlFor="role">Rôle</Label>
                   {isPDG ? (
                     <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
                       className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                       <option value="CHEF_AGENCE">Chef d'Agence</option>
-                      <option value="CAISSIERE">CaissiÃ¨re</option>
+                      <option value="CAISSIERE">Caissière</option>
                     </select>
                   ) : (
                     <div className="flex items-center h-11 px-3 bg-secondary/10 border border-border rounded-xl text-sm text-muted-foreground font-bold">
-                      CaissiÃ¨re (Auto)
+                      Caissière (Auto)
                     </div>
                   )}
                 </div>
@@ -263,22 +263,22 @@ export default function UsersPage() {
               </div>
 
               <div className="space-y-2 pt-2 border-t border-border/50">
-                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-3">Informations ComplÃ©mentaires</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-3">Informations Complémentaires</p>
                 <div className="space-y-3">
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="NumÃ©ro de tÃ©lÃ©phone" className="pl-10 bg-secondary/10 border-border rounded-xl h-11" />
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Numéro de téléphone" className="pl-10 bg-secondary/10 border-border rounded-xl h-11" />
                   </div>
                   <div className="relative">
                     <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input value={cni} onChange={(e) => setCni(e.target.value)} placeholder="NumÃ©ro CNI" className="pl-10 bg-secondary/10 border-border rounded-xl h-11" />
+                    <Input value={cni} onChange={(e) => setCni(e.target.value)} placeholder="Numéro CNI" className="pl-10 bg-secondary/10 border-border rounded-xl h-11" />
                   </div>
                 </div>
               </div>
 
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-12 rounded-xl mt-4 shadow-lg shadow-primary/20" disabled={creating}>
                 {creating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}
-                CrÃ©er le compte
+                Créer le compte
               </Button>
             </form>
           </CardContent>
@@ -290,7 +290,7 @@ export default function UsersPage() {
             <CardHeader className="pb-4 border-b border-border/50">
               <CardTitle className="text-foreground flex items-center font-black text-lg">
                 <Users className="mr-2 h-5 w-5 text-primary" />
-                {isPDG ? 'Tous les utilisateurs' : `CaissiÃ¨res â€” ${myAgenceName || 'Mon agence'}`}
+                {isPDG ? 'Tous les utilisateurs' : `Caissières  ${myAgenceName || 'Mon agence'}`}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -302,7 +302,7 @@ export default function UsersPage() {
                 </div>
               ) : profiles.length === 0 ? (
                 <div className="p-12 text-center text-muted-foreground font-medium">
-                  {isChef ? 'Aucune caissiÃ¨re dans votre agence.' : 'Aucun utilisateur trouvÃ©.'}
+                  {isChef ? 'Aucune caissière dans votre agence.' : 'Aucun utilisateur trouvé.'}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -310,7 +310,7 @@ export default function UsersPage() {
                     <thead className="text-xs uppercase bg-secondary/30 text-muted-foreground border-b border-border font-bold">
                       <tr>
                         <th className="px-6 py-4">Utilisateur</th>
-                        <th className="px-6 py-4">RÃ´le</th>
+                        <th className="px-6 py-4">Rôle</th>
                         <th className="px-6 py-4">Statut</th>
                         <th className="px-6 py-4">Agence</th>
                         <th className="px-6 py-4 text-right">Actions</th>

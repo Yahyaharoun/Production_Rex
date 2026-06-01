@@ -13,7 +13,7 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Types 
 interface ProductionRecord {
   id: string;
   immatriculation: string;
@@ -42,7 +42,7 @@ interface Agency {
 
 type ReportPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Helpers 
 const fmt = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
 const fmtCompact = (n: number) =>
   n >= 1_000_000
@@ -51,7 +51,7 @@ const fmtCompact = (n: number) =>
     ? (n / 1_000).toFixed(0) + 'k'
     : n.toString();
 
-// â”€â”€â”€ Composant principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Composant principal 
 export default function ReportsPage() {
   const user = useAuthStore((s) => s.user);
   const roleStr = String(user?.role || '').toUpperCase().trim();
@@ -68,7 +68,7 @@ export default function ReportsPage() {
   const [search, setSearch] = useState('');
   const [agenceFilter, setAgenceFilter] = useState('');
 
-  // â”€â”€ Chargement des agences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Chargement des agences 
   useEffect(() => {
     supabase
       .from('agencies')
@@ -79,7 +79,7 @@ export default function ReportsPage() {
       });
   }, []);
 
-  // â”€â”€ Chargement des rapports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Chargement des rapports 
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
@@ -133,14 +133,14 @@ export default function ReportsPage() {
     if (!window.confirm('Voulez-vous vraiment supprimer cette production ?')) return;
     const { error } = await supabase.from('productions').delete().eq('id', id);
     if (!error) {
-      toast.success('Production supprimée');
+      toast.success('Production supprime');
       fetchReports();
     } else {
       toast.error('Erreur de suppression', { description: (error as any)?.message });
     }
   };
 
-  // â”€â”€ Filtrage local â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Filtrage local 
   const filteredRecords = records.filter((r) => {
     const matchSearch =
       !search ||
@@ -157,7 +157,7 @@ export default function ReportsPage() {
     return matchSearch && matchAgence;
   });
 
-  // â”€â”€ Statistiques globales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Statistiques globales 
   const classiques = filteredRecords.filter(
     (r) => !r.production_type || r.production_type === 'CLASSIQUE'
   );
@@ -192,7 +192,7 @@ export default function ReportsPage() {
   const statsVIP = calcStats(vips);
   const statsTotal = calcStats(filteredRecords);
 
-  // ——— Stats par agence ———————————————————————————————————————————
+  // --- Stats par agence ---
   const statsByAgence = (() => {
     const map: Record<string, { name: string; classique: number; vip: number; net: number; count: number }> = {};
     filteredRecords.forEach((r) => {
@@ -213,7 +213,7 @@ export default function ReportsPage() {
     return Object.values(map).sort((a, b) => b.net - a.net);
   })();
 
-  // â”€â”€ Export PDF (sans jspdf-autotable â€” utilise jsPDF natif) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Export PDF (sans jspdf-autotable  utilise jsPDF natif) 
   const exportPDF = async () => {
     setLoading(true);
     try {
@@ -228,7 +228,7 @@ export default function ReportsPage() {
         CUSTOM: `${dateStart} - ${dateEnd}`,
       };
 
-      // En-tÃªte
+      // En-tête
       doc.setFillColor(6, 95, 70);
       doc.rect(0, 0, 297, 28, 'F');
       doc.setTextColor(255, 255, 255);
@@ -242,7 +242,7 @@ export default function ReportsPage() {
 
       let y = 35;
 
-      // RÃ©sumÃ© global
+      // Résumé global
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
       doc.text('Resume Global', 14, y);
@@ -350,16 +350,16 @@ export default function ReportsPage() {
   };
 
   const PERIODS: { key: ReportPeriod; label: string; icon: string }[] = [
-    { key: 'DAILY',   label: "Aujourd'hui", icon: 'ðŸ“…' },
-    { key: 'WEEKLY',  label: '7 jours',     icon: 'ðŸ“†' },
-    { key: 'MONTHLY', label: '30 jours',    icon: 'ðŸ—“ï¸' },
-    { key: 'YEARLY',  label: 'Annuel',      icon: 'ðŸ“Š' },
-    { key: 'CUSTOM',  label: 'Personnalise', icon: 'ðŸ”§' },
+    { key: 'DAILY',   label: "Aujourd'hui", icon: '📅' },
+    { key: 'WEEKLY',  label: '7 jours',     icon: '📊' },
+    { key: 'MONTHLY', label: '30 jours',    icon: '📆' },
+    { key: 'YEARLY',  label: 'Annuel',      icon: '📈' },
+    { key: 'CUSTOM',  label: 'Personnalisé', icon: '🔧' },
   ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-8">
-      {/* â”€â”€ En-tÃªte â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  En-tête  */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -367,7 +367,7 @@ export default function ReportsPage() {
             Rapports &amp; Comptabilite
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Analyse detaillee des productions â€” Classique &amp; VIP
+            Analyse detaillee des productions  Classique &amp; VIP
           </p>
         </div>
         <div className="flex gap-2">
@@ -382,7 +382,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Filtres de pÃ©riode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Filtres de période  */}
       <Card className="border-0 shadow-sm">
         <CardContent className="pt-4 pb-4">
           <div className="flex flex-wrap gap-2">
@@ -432,7 +432,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/* â”€â”€ Statistiques Classique vs VIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Statistiques Classique vs VIP  */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1,2,3].map(i => <Skeleton key={i} className="h-40 rounded-2xl" />)}
@@ -522,7 +522,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Stats par agence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Stats par agence  */}
       {!loading && statsByAgence.length > 0 && (
         <Card className="border-0 shadow-md">
           <CardHeader>
@@ -581,7 +581,7 @@ export default function ReportsPage() {
         </Card>
       )}
 
-      {/* â”€â”€ Filtres de recherche â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Filtres de recherche  */}
       <Card className="border-0 shadow-sm">
         <CardContent className="pt-4 pb-4">
           <div className="flex flex-wrap gap-3 items-center">
@@ -611,7 +611,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/* â”€â”€ Liste des productions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Liste des productions  */}
       <Card className="border-0 shadow-md">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -680,11 +680,11 @@ export default function ReportsPage() {
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-2">
                         <span>{r.driver_name}</span>
-                        <span>Â·</span>
+                        <span>·</span>
                         <span>{r.passengers_at_departure || 0} pass.</span>
-                        <span>Â·</span>
+                        <span>·</span>
                         <span>{new Date(r.date).toLocaleDateString('fr-FR')}</span>
-                        <span>Â·</span>
+                        <span>·</span>
                         <span className="text-destructive">- {fmt(expenses)}</span>
                       </div>
                     </div>

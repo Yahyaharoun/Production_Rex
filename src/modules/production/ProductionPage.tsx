@@ -15,10 +15,10 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Skeleton } from '../../components/ui/skeleton';
 
-// â”€â”€â”€ Tarifs dynamiques par agence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Tarifs dynamiques par agence 
 const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
   const name = agenceName.toLowerCase();
-  if (name.includes('mbalmayo') || name.includes('yaoundÃ©') || name.includes('yaounde')) {
+  if (name.includes('mbalmayo') || name.includes('yaoundé') || name.includes('yaounde')) {
     return type === 'VIP' ? 1000 : 700;
   }
   if (name.includes('mimboman') || name.includes('akonolinga')) {
@@ -27,15 +27,15 @@ const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
   if (name.includes('mimbone') || name.includes('ayos')) {
     return 2000;
   }
-  // Prix par dÃ©faut
+  // Prix par défaut
   return type === 'VIP' ? 1000 : 700;
 };
 
-// â”€â”€â”€ SchÃ©ma de validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Schéma de validation 
 const productionSchema = z.object({
   immatriculation: z.string().min(1, "L'immatriculation est requise"),
   driverName: z.string().min(1, 'Le nom du chauffeur est requis'),
-  totalSeats: z.coerce.number().min(1, 'CapacitÃ© requise'),
+  totalSeats: z.coerce.number().min(1, 'Capacité requise'),
   passengersAtDeparture: z.coerce.number().min(0, 'Nombre de passagers requis'),
   productionType: z.enum(['CLASSIQUE', 'VIP'], {
     message: 'Sélectionnez le type de production',
@@ -120,13 +120,13 @@ export default function ProductionPage() {
 
   const ligne = useWatch({ control, name: 'ligne', defaultValue: '' }) || '';
 
-  // â”€â”€ Calculs automatiques â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Calculs automatiques 
   const pricePerTicket = getPrice(ligne, productionType as 'CLASSIQUE' | 'VIP');
   const revenue = Number(passengersAtDeparture) * pricePerTicket;
   const totalExpenses = Number(fuel) + Number(toll) + Number(washing) + Number(others);
   const netToDeposit = revenue - totalExpenses;
 
-  // â”€â”€ Chargement des agences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Chargement des agences 
   const fetchAgencies = async () => {
     setAgenciesLoading(true);
     setAgenciesError(null);
@@ -146,13 +146,13 @@ export default function ProductionPage() {
 
       setAgencies(data);
 
-      // PrÃ©-sÃ©lectionner l'agence de l'utilisateur
+      // Pré-sélectionner l'agence de l'utilisateur
       if (userAgenceId) {
         const myAgence = data.find((a: Agency) => a.id === userAgenceId);
         if (myAgence) setValue('ligne', myAgence.name, { shouldValidate: true });
       }
     } catch (err: unknown) {
-      const msg = (err as any)?.message || 'Connexion à la base de données impossible';
+      const msg = (err as any)?.message || 'Connexion  la base de donnes impossible';
       setAgenciesError(`Erreur de chargement des agences : ${msg}`);
       setAgencies([]);
       console.error('[ProductionPage] fetchAgencies error:', err);
@@ -161,7 +161,7 @@ export default function ProductionPage() {
     }
   };
 
-  // â”€â”€ Chargement de l'historique â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Chargement de l'historique 
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
@@ -191,7 +191,7 @@ export default function ProductionPage() {
     fetchHistory();
   }, []);
 
-  // â”€â”€ Soumission du formulaire â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Soumission du formulaire 
   const onSubmit = async (data: ProductionFormValues) => {
     setIsSubmitting(true);
     setSaved(false);
@@ -225,14 +225,14 @@ export default function ProductionPage() {
       if (error) throw error;
 
       setSaved(true);
-      toast.success('Production enregistrÃ©e avec succÃ¨s !', {
-        description: `${data.productionType} Â· ${data.passengersAtDeparture} pass. Ã— ${pricePerTicket.toLocaleString()} FCFA = ${calculatedRevenue.toLocaleString()} FCFA Â· Net: ${calculatedNet.toLocaleString()} FCFA`,
+      toast.success('Production enregistrée avec succès !', {
+        description: `${data.productionType} - ${data.passengersAtDeparture} pass. x ${pricePerTicket.toLocaleString()} FCFA = ${calculatedRevenue.toLocaleString()} FCFA - Net: ${calculatedNet.toLocaleString()} FCFA`,
       });
 
       fetchHistory();
       setTimeout(() => setSaved(false), 3000);
 
-      // RÃ©initialiser partiellement (conserver la ligne)
+      // Réinitialiser partiellement (conserver la ligne)
       reset({
         totalSeats: 30,
         fuel: 0,
@@ -252,13 +252,13 @@ export default function ProductionPage() {
     }
   };
 
-  // â”€â”€ Suppression â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Suppression 
   const handleDelete = async (id: string) => {
     if (!canValidate) return;
     if (!confirm('Voulez-vous vraiment supprimer cette production ?')) return;
     const { error } = await supabase.from('productions').delete().eq('id', id);
     if (!error) {
-      toast.success('Production supprimée');
+      toast.success('Production supprime');
       fetchHistory();
     } else {
       toast.error('Erreur de suppression', { description: error.message });
@@ -267,10 +267,10 @@ export default function ProductionPage() {
 
   const handleValidate = async (id: string) => {
     if (!canValidate) return;
-    if (!confirm('Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.')) return;
+    if (!confirm('Voulez-vous valider cette production ? Elle apparatra ensuite dans les rapports.')) return;
     const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
     if (!error) {
-      toast.success('Production validée !');
+      toast.success('Production valide !');
       fetchHistory();
     } else {
       toast.error('Erreur de validation', { description: error.message });
@@ -279,7 +279,7 @@ export default function ProductionPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-8">
-      {/* â”€â”€ En-tÃªte â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  En-tête  */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -287,7 +287,7 @@ export default function ProductionPage() {
             Saisie de Production
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {user?.name} Â· {user?.role?.replace('_', ' ')}
+            {user?.name} · {user?.role?.replace('_', ' ')}
           </p>
         </div>
         <Button
@@ -303,7 +303,7 @@ export default function ProductionPage() {
         </Button>
       </div>
 
-      {/* â”€â”€ Formulaire â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Formulaire  */}
       <Card className="shadow-md border-0 bg-card">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -311,14 +311,14 @@ export default function ProductionPage() {
             Nouvelle Production
           </CardTitle>
           <CardDescription>
-            Le tarif est calculÃ© <strong>automatiquement</strong> selon le type de production â€” la caissiÃ¨re ne peut pas modifier le prix.
+            Le tarif est calculé <strong>automatiquement</strong> selon le type de production  la caissière ne peut pas modifier le prix.
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-            {/* â”€ Ligne / Agence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Ligne / Agence  */}
             <div className="space-y-2">
               <Label htmlFor="ligne" className="flex items-center gap-1.5 font-semibold">
                 <MapPin className="h-4 w-4 text-primary" />
@@ -339,7 +339,7 @@ export default function ProductionPage() {
                       onClick={fetchAgencies}
                       className="mt-1.5 text-xs underline opacity-80 hover:opacity-100 flex items-center gap-1"
                     >
-                      <RefreshCw className="h-3 w-3" /> RÃ©essayer
+                      <RefreshCw className="h-3 w-3" /> Réessayer
                     </button>
                   </div>
                 </div>
@@ -352,7 +352,7 @@ export default function ProductionPage() {
                     {...register('ligne')}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <option value="">-- SÃ©lectionner une agence --</option>
+                    <option value="">-- Sélectionner une agence --</option>
                     {agencies.map((a) => (
                       <option key={a.id} value={a.name}>
                         {a.name}
@@ -361,7 +361,7 @@ export default function ProductionPage() {
                   </select>
                 ) : (
                   <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-2 text-sm font-bold text-foreground">
-                    {agencies.find(a => a.id === userAgenceId)?.name || 'Agence non assignÃ©e'}
+                    {agencies.find(a => a.id === userAgenceId)?.name || 'Agence non assignée'}
                     <input type="hidden" {...register('ligne')} />
                   </div>
                 )
@@ -373,7 +373,7 @@ export default function ProductionPage() {
               )}
             </div>
 
-            {/* â”€ Immatriculation + Chauffeur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Immatriculation + Chauffeur  */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="immatriculation" className="flex items-center gap-1.5 font-semibold">
@@ -407,11 +407,11 @@ export default function ProductionPage() {
               </div>
             </div>
 
-            {/* â”€ CapacitÃ© + Passagers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Capacité + Passagers  */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="totalSeats" className="font-semibold">
-                  CapacitÃ© totale (siÃ¨ges)
+                  Capacité totale (sièges)
                 </Label>
                 <Input id="totalSeats" type="number" min="1" {...register('totalSeats')} />
                 {errors.totalSeats && (
@@ -421,7 +421,7 @@ export default function ProductionPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="passengersAtDeparture" className="font-semibold">
-                  Passagers au dÃ©part *
+                  Passagers au départ *
                 </Label>
                 <Input
                   id="passengersAtDeparture"
@@ -436,14 +436,14 @@ export default function ProductionPage() {
               </div>
             </div>
 
-            {/* â”€ Type de production (choix principal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Type de production (choix principal)  */}
             <div className="space-y-3">
               <Label className="flex items-center gap-1.5 font-semibold">
                 <Star className="h-4 w-4 text-primary" />
                 Type de Production *
               </Label>
               <p className="text-xs text-muted-foreground -mt-1">
-                Le prix est fixÃ© automatiquement selon le type choisi. Non modifiable.
+                Le prix est fixé automatiquement selon le type choisi. Non modifiable.
               </p>
 
               <div className="grid grid-cols-2 gap-3">
@@ -456,7 +456,7 @@ export default function ProductionPage() {
                   }`}
                 >
                   <input type="radio" value="CLASSIQUE" {...register('productionType')} className="sr-only" />
-                  <span className="text-3xl">ðŸšŒ</span>
+                  <span className="text-3xl">xaR</span>
                   <div className="text-center">
                     <div className="font-bold text-sm tracking-wide">CLASSIQUE</div>
                     <div className="text-primary font-extrabold text-xl mt-0.5">{getPrice(ligne || '', 'CLASSIQUE')} FCFA</div>
@@ -476,7 +476,7 @@ export default function ProductionPage() {
                   }`}
                 >
                   <input type="radio" value="VIP" {...register('productionType')} className="sr-only" />
-                  <span className="text-3xl">â­</span>
+                  <span className="text-3xl">⭐</span>
                   <div className="text-center">
                     <div className="font-bold text-sm tracking-wide">VIP</div>
                     <div className="text-amber-500 font-extrabold text-xl mt-0.5">{getPrice(ligne || '', 'VIP')} FCFA</div>
@@ -495,7 +495,7 @@ export default function ProductionPage() {
               )}
             </div>
 
-            {/* â”€ RÃ©capitulatif recette automatique â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Récapitulatif recette automatique  */}
             <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 space-y-3">
               <div className="text-sm font-semibold text-primary flex items-center gap-2">
                 <Calculator className="h-4 w-4" />
@@ -531,21 +531,21 @@ export default function ProductionPage() {
               </div>
 
               <p className="text-xs text-muted-foreground italic">
-                âš ï¸ Prix fixÃ© automatiquement â€” Non modifiable par la caissiÃ¨re
+                a️ Prix fixé automatiquement  Non modifiable par la caissière
               </p>
             </div>
 
-            {/* â”€ DÃ©penses du trajet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Dépenses du trajet  */}
             <div className="space-y-3">
               <Label className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-                DÃ©penses du trajet (FCFA)
+                Dépenses du trajet (FCFA)
               </Label>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { name: 'fuel'    as const, label: 'â›½ Carburant' },
-                  { name: 'toll'    as const, label: 'ðŸ›£ï¸ PÃ©age' },
-                  { name: 'washing' as const, label: 'ðŸ§¹ Lavage' },
-                  { name: 'others'  as const, label: 'ðŸ“¦ Autres' },
+                  { name: 'fuel'    as const, label: 'Carburant' },
+                  { name: 'toll'    as const, label: 'Péage' },
+                  { name: 'washing' as const, label: 'Lavage' },
+                  { name: 'others'  as const, label: 'Autres' },
                 ].map(({ name, label }) => (
                   <div key={name} className="space-y-1.5">
                     <Label htmlFor={name} className="text-xs font-medium">{label}</Label>
@@ -555,7 +555,7 @@ export default function ProductionPage() {
               </div>
             </div>
 
-            {/* â”€ RÃ©capitulatif net â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Récapitulatif net  */}
             <div className={`rounded-xl p-4 border-2 transition-colors ${
               netToDeposit >= 0
                 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
@@ -563,13 +563,13 @@ export default function ProductionPage() {
             }`}>
               <div className="flex justify-between items-center">
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">DÃ©penses totales</div>
+                  <div className="text-xs text-muted-foreground mb-1">Dépenses totales</div>
                   <div className="text-sm font-semibold text-destructive">
-                    âˆ’ {totalExpenses.toLocaleString()} FCFA
+                    - {totalExpenses.toLocaleString()} FCFA
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-muted-foreground mb-1">Net Ã  verser</div>
+                  <div className="text-xs text-muted-foreground mb-1">Net à verser</div>
                   <div className={`text-2xl font-black ${
                     netToDeposit >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
@@ -581,7 +581,7 @@ export default function ProductionPage() {
               </div>
             </div>
 
-            {/* â”€ Bouton d'enregistrement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/*  Bouton d'enregistrement  */}
             <Button
               type="submit"
               disabled={isSubmitting || agenciesLoading}
@@ -590,7 +590,7 @@ export default function ProductionPage() {
               {isSubmitting ? (
                 <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Enregistrement en cours...</>
               ) : saved ? (
-                <><CheckCircle className="mr-2 h-5 w-5" />Production enregistrÃ©e !</>
+                <><CheckCircle className="mr-2 h-5 w-5" />Production enregistrée !</>
               ) : (
                 <><Save className="mr-2 h-5 w-5" />Enregistrer la Production</>
               )}
@@ -599,7 +599,7 @@ export default function ProductionPage() {
         </CardContent>
       </Card>
 
-      {/* â”€â”€ Historique â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/*  Historique  */}
       {showHistory && (
         <Card className="shadow-md border-0">
           <CardHeader>
@@ -609,7 +609,7 @@ export default function ProductionPage() {
                 Historique des Productions
               </CardTitle>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">{history.length} entrÃ©e(s)</span>
+                <span className="text-sm text-muted-foreground">{history.length} entrée(s)</span>
                 <Button variant="ghost" size="sm" onClick={fetchHistory} disabled={loadingHistory}>
                   <RefreshCw className={`h-4 w-4 ${loadingHistory ? 'animate-spin' : ''}`} />
                 </Button>
@@ -626,8 +626,8 @@ export default function ProductionPage() {
             ) : history.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p className="font-medium">Aucune production enregistrÃ©e</p>
-                <p className="text-sm mt-1 opacity-70">Les productions apparaÃ®tront ici</p>
+                <p className="font-medium">Aucune production enregistrée</p>
+                <p className="text-sm mt-1 opacity-70">Les productions apparaîtront ici</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
@@ -651,12 +651,12 @@ export default function ProductionPage() {
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                             : 'bg-orange-100 text-orange-700'
                         }`}>
-                          {rec.status === 'VALIDATED' ? 'âœ“ ValidÃ©' : 'â³ Brouillon'}
+                          {rec.status === 'VALIDATED' ? '✔ Validé' : '⏳ Brouillon'}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate">
-                        {rec.driver_name} Â· {rec.ligne || 'N/A'} Â·{' '}
-                        {rec.passengers_at_departure} pass. Â·{' '}
+                        {rec.driver_name} · {rec.ligne || 'N/A'} ·{' '}
+                        {rec.passengers_at_departure} pass. ·{' '}
                         {new Date(rec.created_at).toLocaleString('fr-FR', {
                           day: '2-digit', month: '2-digit',
                           hour: '2-digit', minute: '2-digit'
@@ -668,7 +668,7 @@ export default function ProductionPage() {
                       <div className="font-black text-sm text-emerald-600 dark:text-emerald-400">
                         {(rec.net_to_deposit || 0).toLocaleString()} FCFA
                       </div>
-                      <div className="text-xs text-muted-foreground">net versÃ©</div>
+                      <div className="text-xs text-muted-foreground">net verséé</div>
                     </div>
 
                     {canValidate && (
