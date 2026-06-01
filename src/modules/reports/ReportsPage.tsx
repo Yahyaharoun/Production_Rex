@@ -5,12 +5,13 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
   FileText, Filter, Search, FileDown,
-  TrendingUp, RefreshCw, Star, Bus, MapPin, BarChart3
+  TrendingUp, RefreshCw, Star, Bus, MapPin, BarChart3, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
+import { useAuthStore } from '../../store/useAuthStore';
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface ProductionRecord {
@@ -52,6 +53,9 @@ const fmtCompact = (n: number) =>
 
 // â”€â”€â”€ Composant principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ReportsPage() {
+  const user = useAuthStore((s) => s.user);
+  const canValidate = user?.role === 'PDG' || user?.role === 'CHEF_AGENCE';
+
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
@@ -116,6 +120,18 @@ export default function ReportsPage() {
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
+  const handleDelete = async (id: string) => {
+    if (!canValidate) return;
+    if (!window.confirm('Voulez-vous vraiment supprimer cette production ?')) return;
+    const { error } = await supabase.from('productions').delete().eq('id', id);
+    if (!error) {
+      toast.success('Production supprimée');
+      fetchReports();
+    } else {
+      toast.error('Erreur de suppression', { description: (error as any)?.message });
+    }
+  };
+
   // â”€â”€ Filtrage local â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filteredRecords = records.filter((r) => {
     const matchSearch =
@@ -168,7 +184,7 @@ export default function ReportsPage() {
   const statsVIP = calcStats(vips);
   const statsTotal = calcStats(filteredRecords);
 
-  // â”€â”€ Stats par agence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ——— Stats par agence ———————————————————————————————————————————
   const statsByAgence = (() => {
     const map: Record<string, { name: string; classique: number; vip: number; net: number; count: number }> = {};
     filteredRecords.forEach((r) => {
@@ -673,6 +689,18 @@ export default function ReportsPage() {
                         {fmt(net)}
                       </div>
                     </div>
+
+                    {canValidate && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 ml-2 text-destructive hover:bg-destructive/10 flex-shrink-0"
+                        onClick={() => handleDelete(r.id)}
+                        title="Supprimer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 );
               })}
