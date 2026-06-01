@@ -178,7 +178,12 @@ export default function ProductionPage() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setHistory(data || []);
+      
+      const dataWithType = (data || []).map((r: any) => ({
+        ...r,
+        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
+      }));
+      setHistory(dataWithType);
     } catch (err: unknown) {
       toast.error('Erreur de chargement de l\'historique', { description: (err as any)?.message });
     } finally {
@@ -202,7 +207,7 @@ export default function ProductionPage() {
       const calculatedNet = calculatedRevenue - (Number(data.fuel) + Number(data.toll) + Number(data.washing) + Number(data.others));
 
       const { error } = await supabase.from('productions').insert({
-        immatriculation: data.immatriculation.toUpperCase(),
+        immatriculation: data.productionType === 'VIP' ? `${data.immatriculation.toUpperCase()} (VIP)` : data.immatriculation.toUpperCase(),
         driver_name: data.driverName,
         total_seats: data.totalSeats,
         passengers_at_departure: data.passengersAtDeparture,
@@ -218,7 +223,6 @@ export default function ProductionPage() {
         caissiere_name: user?.name || '',
         ligne: data.ligne,
         agence_id: agenceId,
-        production_type: data.productionType,
       });
 
       if (error) throw error;

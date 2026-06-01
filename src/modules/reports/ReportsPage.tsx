@@ -112,7 +112,14 @@ export default function ReportsPage() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setRecords(data || []);
+      
+      // Injecter le type de production déduit de l'immatriculation
+      const dataWithType = (data || []).map((r: any) => ({
+        ...r,
+        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
+      }));
+      
+      setRecords(dataWithType);
     } catch (err: unknown) {
       const msg = err instanceof Error ? (err as any)?.message : 'Erreur inconnue';
       toast.error('Erreur de chargement', { description: msg });
