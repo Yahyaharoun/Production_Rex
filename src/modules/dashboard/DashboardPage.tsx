@@ -33,7 +33,7 @@ export default function DashboardPage() {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Exécuter toutes les requêtes en parallèle pour la performance
+      // ExÃ©cuter toutes les requÃªtes en parallÃ¨le pour la performance
       const [todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes] = await Promise.all([
         supabase.from('productions').select('*').eq('date', today),
         supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').order('created_at', { ascending: false }).limit(5),
@@ -122,7 +122,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <Button onClick={() => fetchDashboard(true)} variant="outline" className="border-border rounded-xl font-bold bg-white shadow-sm hover:bg-secondary">
-          <Database className={cn("mr-2 h-4 w-4", refreshing && "animate-pulse")} /> Actualiser les données
+          <Database className={cn("mr-2 h-4 w-4", refreshing && "animate-pulse")} /> Actualiser les donnÃ©es
         </Button>
       </div>
 
@@ -136,7 +136,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-xl font-black text-foreground">{data.revenue.toLocaleString()} <span className="text-xs">XAF</span></div>
             <div className="flex items-center gap-1 mt-3 text-[10px] text-primary font-black uppercase tracking-wider">
-              <CheckCircle className="h-3 w-3" /> Données réelles DB
+              <CheckCircle className="h-3 w-3" /> DonnÃ©es rÃ©elles DB
             </div>
           </CardContent>
         </Card>
@@ -148,13 +148,13 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-black text-foreground">{data.expenses.toLocaleString()} <span className="text-xs">XAF</span></div>
-            <p className="text-[10px] text-muted-foreground font-bold mt-3 uppercase">Carburant, Péage, Maintenance</p>
+            <p className="text-[10px] text-muted-foreground font-bold mt-3 uppercase">Carburant, PÃ©age, Maintenance</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-blue-600">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Net à Verser</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Net Ã  Verser</CardTitle>
             <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600"><CheckCircle className="h-5 w-5" /></div>
           </CardHeader>
           <CardContent>
@@ -167,7 +167,7 @@ export default function DashboardPage() {
 
         <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-yellow-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Disponibilité</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">DisponibilitÃ©</CardTitle>
             <div className="p-2 bg-yellow-500/10 rounded-xl text-yellow-600"><Bus className="h-5 w-5" /></div>
           </CardHeader>
           <CardContent>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Détails de la base de données */}
+      {/* DÃ©tails de la base de donnÃ©es */}
       <div className="grid gap-6 md:grid-cols-7">
         <Card className="md:col-span-4 bg-white border-border shadow-sm rounded-[2.5rem] overflow-hidden">
           <CardHeader className="bg-secondary/10 pb-6 pt-8 px-8">
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 <CardTitle className="text-2xl font-black text-foreground flex items-center gap-3">
                   <TrendingUp className="h-6 w-6 text-primary" /> Performance Hebdomadaire
                 </CardTitle>
-                <p className="text-sm font-bold text-muted-foreground mt-1">Comparaison des revenus journaliers réels.</p>
+                <p className="text-sm font-bold text-muted-foreground mt-1">Comparaison des revenus journaliers rÃ©els.</p>
               </div>
             </div>
           </CardHeader>
@@ -220,15 +220,15 @@ export default function DashboardPage() {
         <Card className="md:col-span-3 bg-white border-border shadow-sm rounded-[2.5rem] overflow-hidden">
           <CardHeader className="bg-secondary/10 pb-6 pt-8 px-8">
             <CardTitle className="text-2xl font-black text-foreground flex items-center gap-3">
-              <MapPin className="h-6 w-6 text-primary" /> Voyages Récents
+              <MapPin className="h-6 w-6 text-primary" /> Voyages RÃ©cents
             </CardTitle>
-            <p className="text-sm font-bold text-muted-foreground mt-1">Données extraites en direct de la base.</p>
+            <p className="text-sm font-bold text-muted-foreground mt-1">DonnÃ©es extraites en direct de la base.</p>
           </CardHeader>
           <CardContent className="p-6">
             <div className="space-y-4">
               {data.recentDepartures.length === 0 ? (
                 <div className="py-20 text-center text-muted-foreground">
-                   <p className="font-bold">Aucune donnée stockée.</p>
+                   <p className="font-bold">Aucune donnÃ©e stockÃ©e.</p>
                 </div>
               ) : (
                 data.recentDepartures.map((prod, i) => (
@@ -239,12 +239,12 @@ export default function DashboardPage() {
                     <div className="ml-4 flex-1 min-w-0">
                       <p className="text-sm font-black text-foreground truncate">{prod.immatriculation}</p>
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                        {prod.driver_name} • {new Date(prod.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        {prod.driver_name} â€¢ {new Date(prod.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-md font-black text-primary">{Number(prod.net_to_deposit).toLocaleString()}</p>
-                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Net Versé</p>
+                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Net VersÃ©</p>
                     </div>
                   </div>
                 ))
@@ -254,13 +254,13 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Vue Tableur Directe pour vérification */}
+      {/* Vue Tableur Directe pour vÃ©rification */}
       <Card className="bg-white border-border shadow-sm rounded-[2.5rem] overflow-hidden">
         <CardHeader className="bg-foreground text-white p-8">
           <CardTitle className="text-xl font-black flex items-center gap-3">
-            <Database className="h-6 w-6 text-primary" /> Vue d'ensemble des données stockées (Aujourd'hui)
+            <Database className="h-6 w-6 text-primary" /> Vue d'ensemble des donnÃ©es stockÃ©es (Aujourd'hui)
           </CardTitle>
-          <p className="text-xs font-bold text-white/60 uppercase tracking-widest mt-1">Ceci affiche les entrées exactes de la table "productions"</p>
+          <p className="text-xs font-bold text-white/60 uppercase tracking-widest mt-1">Ceci affiche les entrÃ©es exactes de la table "productions"</p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -268,7 +268,7 @@ export default function DashboardPage() {
               <thead>
                 <tr className="bg-secondary/50 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">
                   <th className="px-8 py-4">ID Voyage</th>
-                  <th className="px-8 py-4">Véhicule</th>
+                  <th className="px-8 py-4">VÃ©hicule</th>
                   <th className="px-8 py-4">Chauffeur</th>
                   <th className="px-8 py-4 text-right">Recette</th>
                   <th className="px-8 py-4 text-right">Charges</th>
@@ -291,7 +291,7 @@ export default function DashboardPage() {
                 {data.todayEntries.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-8 py-12 text-center text-muted-foreground font-bold italic">
-                      Aucune donnée enregistrée pour aujourd'hui dans la base de données.
+                      Aucune donnÃ©e enregistrÃ©e pour aujourd'hui dans la base de donnÃ©es.
                     </td>
                   </tr>
                 )}

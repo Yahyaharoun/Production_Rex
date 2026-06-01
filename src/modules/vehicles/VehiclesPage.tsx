@@ -50,8 +50,8 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
     const e: Record<string, string> = {};
     if (!form.immatriculation.trim()) e.immatriculation = 'Immatriculation requise';
     if (!form.brand.trim()) e.brand = 'Marque requise';
-    if (!form.model.trim()) e.model = 'Modèle requis';
-    if (form.total_seats < 1) e.total_seats = 'Capacité invalide';
+    if (!form.model.trim()) e.model = 'ModÃ¨le requis';
+    if (form.total_seats < 1) e.total_seats = 'CapacitÃ© invalide';
     setFormErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -61,7 +61,7 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
       <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-border/50">
         <CardTitle className="text-foreground text-lg font-black flex items-center gap-2">
           <CarFront className="h-5 w-5 text-primary" />
-          {mode === 'add' ? 'Ajouter un véhicule' : 'Modifier le véhicule'}
+          {mode === 'add' ? 'Ajouter un vÃ©hicule' : 'Modifier le vÃ©hicule'}
         </CardTitle>
         <Button variant="ghost" size="sm" onClick={onCancel} className="hover:bg-secondary rounded-xl"><X className="h-5 w-5 text-muted-foreground" /></Button>
       </CardHeader>
@@ -82,14 +82,14 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
             {errors.brand && <p className="text-xs text-destructive font-semibold">{errors.brand}</p>}
           </div>
           <div className="space-y-2">
-            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Modèle *</Label>
+            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">ModÃ¨le *</Label>
             <Input placeholder="Coaster" value={form.model}
               onChange={(e) => setForm({ ...form, model: e.target.value })}
               className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm" />
             {errors.model && <p className="text-xs text-destructive font-semibold">{errors.model}</p>}
           </div>
           <div className="space-y-2">
-            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Capacité (places) *</Label>
+            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">CapacitÃ© (places) *</Label>
             <Input type="number" min={1} value={form.total_seats}
               onChange={(e) => setForm({ ...form, total_seats: parseInt(e.target.value) || 0 })}
               className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm" />
@@ -149,7 +149,7 @@ export default function VehiclesPage() {
     try {
       const { error } = await supabase.from('vehicles').insert(v);
       if (error) throw error;
-      toast.success('Véhicule ajouté');
+      toast.success('VÃ©hicule ajoutÃ©');
       setShowForm(false);
       fetchVehicles();
     } catch (err: unknown) {
@@ -165,7 +165,7 @@ export default function VehiclesPage() {
     try {
       const { error } = await supabase.from('vehicles').update(v).eq('id', editingVehicle.id);
       if (error) throw error;
-      toast.success('Véhicule modifié');
+      toast.success('VÃ©hicule modifiÃ©');
       setEditingVehicle(null);
       fetchVehicles();
     } catch (err: unknown) {
@@ -176,12 +176,12 @@ export default function VehiclesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer ce véhicule ?')) return;
+    if (!window.confirm('Voulez-vous vraiment supprimer ce vÃ©hicule ?')) return;
     setLoading(true);
     try {
       const { error } = await supabase.from('vehicles').delete().eq('id', id);
       if (error) throw error;
-      toast.success('Véhicule supprimé');
+      toast.success('VÃ©hicule supprimÃ©');
       fetchVehicles();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
@@ -207,11 +207,11 @@ export default function VehiclesPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-foreground">Gestion de la Flotte</h2>
-          <p className="text-muted-foreground mt-1 font-bold italic">Suivi technique et opérationnel des bus.</p>
+          <p className="text-muted-foreground mt-1 font-bold italic">Suivi technique et opÃ©rationnel des bus.</p>
         </div>
         {isAdminOrChef && (
           <Button onClick={() => { setShowForm(true); setEditingVehicle(null); }} className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-black transition-all hover:-translate-y-0.5">
-            <Plus className="mr-3 h-5 w-5" />Ajouter Véhicule
+            <Plus className="mr-3 h-5 w-5" />Ajouter VÃ©hicule
           </Button>
         )}
       </div>
@@ -228,9 +228,9 @@ export default function VehiclesPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {([
           { key: 'ALL', label: 'Total Flotte', icon: CarFront, color: 'text-foreground', bg: 'bg-secondary' },
-          { key: 'ACTIVE', label: 'Opérationnels', icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
-          { key: 'MAINTENANCE', label: 'En révision', icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-          { key: 'GARAGE', label: 'Immobilisés', icon: X, color: 'text-red-600', bg: 'bg-red-50' },
+          { key: 'ACTIVE', label: 'OpÃ©rationnels', icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+          { key: 'MAINTENANCE', label: 'En rÃ©vision', icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+          { key: 'GARAGE', label: 'ImmobilisÃ©s', icon: X, color: 'text-red-600', bg: 'bg-red-50' },
         ] as const).map(({ key, label, icon: Icon, color, bg }) => (
           <button key={key} onClick={() => setFilterStatus(key)}
             className={`bg-white border rounded-xl p-4 text-left transition-all shadow-sm hover:shadow-md ${filterStatus === key ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-border/80'}`}>
@@ -250,7 +250,7 @@ export default function VehiclesPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border-2 border-dashed">
           <Bus className="mx-auto h-12 w-12 opacity-10 mb-4" />
-          <p className="font-bold text-muted-foreground">Aucun véhicule trouvé.</p>
+          <p className="font-bold text-muted-foreground">Aucun vÃ©hicule trouvÃ©.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -270,11 +270,11 @@ export default function VehiclesPage() {
               <CardContent className="p-5">
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground font-bold">Capacité :</span>
+                    <span className="text-muted-foreground font-bold">CapacitÃ© :</span>
                     <span className="font-black text-foreground">{v.total_seats} places</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-bold text-sm">État :</span>
+                    <span className="text-muted-foreground font-bold text-sm">Ã‰tat :</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm",
                       v.status === 'ACTIVE' ? "bg-primary/10 text-primary border border-primary/20" : "bg-destructive/10 text-destructive border border-destructive/20"
