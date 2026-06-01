@@ -43,8 +43,11 @@ interface Agency {
 type ReportPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM';
 
 //  Helpers 
-const fmt = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
-const fmtCompact = (n: number) => n.toLocaleString('fr-FR');
+const formatNumber = (n: number) => {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+};
+const fmt = (n: number) => formatNumber(n) + ' FCFA';
+const fmtCompact = (n: number) => formatNumber(n);
 
 //  Composant principal 
 export default function ReportsPage() {
