@@ -216,7 +216,6 @@ export default function ProductionPage() {
         expense_toll: data.toll,
         expense_washing: data.washing,
         expense_others: data.others,
-        net_to_deposit: calculatedNet,
         status: 'DRAFT',
         created_by: user?.id,
         date: new Date().toISOString().split('T')[0],
