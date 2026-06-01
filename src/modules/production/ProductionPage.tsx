@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,9 +15,21 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Skeleton } from '../../components/ui/skeleton';
 
-// ─── Tarifs fixes ───────────────────────────────────────────────────────────
-const PRICE_CLASSIQUE = 700;  // FCFA par passager
-const PRICE_VIP = 1000;       // FCFA par passager
+// ─── Tarifs dynamiques par agence ──────────────────────────────────────────
+const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
+  const name = agenceName.toLowerCase();
+  if (name.includes('mbalmayo') || name.includes('yaoundé') || name.includes('yaounde')) {
+    return type === 'VIP' ? 1000 : 700;
+  }
+  if (name.includes('mimboman') || name.includes('akonolinga')) {
+    return 1500;
+  }
+  if (name.includes('ayos')) {
+    return 2000;
+  }
+  // Prix par défaut
+  return type === 'VIP' ? 1000 : 700;
+};
 
 // ─── Schéma de validation ───────────────────────────────────────────────────
 const productionSchema = z.object({
@@ -105,8 +117,10 @@ export default function ProductionPage() {
   const washing = useWatch({ control, name: 'washing', defaultValue: 0 }) || 0;
   const others  = useWatch({ control, name: 'others',  defaultValue: 0 }) || 0;
 
+  const ligne = useWatch({ control, name: 'ligne', defaultValue: '' }) || '';
+
   // ── Calculs automatiques ─────────────────────────────────────────────────
-  const pricePerTicket = productionType === 'VIP' ? PRICE_VIP : PRICE_CLASSIQUE;
+  const pricePerTicket = getPrice(ligne, productionType);
   const revenue = Number(passengersAtDeparture) * pricePerTicket;
   const totalExpenses = Number(fuel) + Number(toll) + Number(washing) + Number(others);
   const netToDeposit = revenue - totalExpenses;
@@ -426,7 +440,7 @@ export default function ProductionPage() {
                   <span className="text-3xl">🚌</span>
                   <div className="text-center">
                     <div className="font-bold text-sm tracking-wide">CLASSIQUE</div>
-                    <div className="text-primary font-extrabold text-xl mt-0.5">700 FCFA</div>
+                    <div className="text-primary font-extrabold text-xl mt-0.5">{getPrice(ligne || '', 'CLASSIQUE')} FCFA</div>
                     <div className="text-xs text-muted-foreground">par passager</div>
                   </div>
                   {productionType === 'CLASSIQUE' && (
@@ -446,7 +460,7 @@ export default function ProductionPage() {
                   <span className="text-3xl">⭐</span>
                   <div className="text-center">
                     <div className="font-bold text-sm tracking-wide">VIP</div>
-                    <div className="text-amber-500 font-extrabold text-xl mt-0.5">1 000 FCFA</div>
+                    <div className="text-amber-500 font-extrabold text-xl mt-0.5">{getPrice(ligne || '', 'VIP')} FCFA</div>
                     <div className="text-xs text-muted-foreground">par passager</div>
                   </div>
                   {productionType === 'VIP' && (
