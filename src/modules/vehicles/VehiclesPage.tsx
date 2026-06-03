@@ -20,9 +20,6 @@ interface Vehicle {
   total_seats: number;
   status: VehicleStatus;
   notes?: string;
-  production_type?: 'VIP' | 'CLASSIQUE';
-  driver_titulaire_id?: string;
-  driver_titulaire_name?: string;
 }
 
 const emptyForm = {
@@ -31,18 +28,15 @@ const emptyForm = {
   model: '',
   total_seats: 30,
   status: 'ACTIVE' as VehicleStatus,
-  production_type: 'CLASSIQUE' as 'VIP' | 'CLASSIQUE',
-  driver_titulaire_id: 'none',
   notes: ''
 };
 
-function VehicleForm({ mode, initial, onSave, onCancel, saving, drivers }: { 
+function VehicleForm({ mode, initial, onSave, onCancel, saving }: { 
   mode: 'add' | 'edit'; 
   initial: typeof emptyForm; 
   onSave: (v: typeof emptyForm) => void; 
   onCancel: () => void; 
   saving: boolean;
-  drivers: any[];
 }) {
   const [form, setForm] = useState(initial);
   const [errors, setFormErrors] = useState<Record<string, string>>({});
@@ -110,22 +104,6 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving, drivers }: {
               <option value="GARAGE">Au garage</option>
             </select>
           </div>
-          <div className="space-y-2">
-            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Type de production</Label>
-            <select value={form.production_type} onChange={(e) => setForm({ ...form, production_type: e.target.value as 'VIP' | 'CLASSIQUE' })}
-              className="w-full rounded-xl bg-secondary/20 border border-border text-foreground h-11 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm font-bold">
-              <option value="CLASSIQUE">CLASSIQUE</option>
-              <option value="VIP">VIP</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Chauffeur Titulaire</Label>
-            <select value={form.driver_titulaire_id} onChange={(e) => setForm({ ...form, driver_titulaire_id: e.target.value })}
-              className="w-full rounded-xl bg-secondary/20 border border-border text-foreground h-11 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm font-bold">
-              <option value="none">Aucun (Mercenaire)</option>
-              {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </div>
         </div>
         <div className="flex justify-end gap-3 mt-8">
           <Button variant="outline" onClick={onCancel} className="rounded-xl font-bold h-10 px-6 border-border">Annuler</Button>
@@ -151,19 +129,12 @@ export default function VehiclesPage() {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<'ALL' | VehicleStatus>('ALL');
 
-  const [drivers, setDrivers] = useState<any[]>([]);
-
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      const [vRes, dRes] = await Promise.all([
-        supabase.from('vehicles').select('*').order('immatriculation'),
-        supabase.from('drivers').select('id, name').order('name')
-      ]);
-      if (vRes.error) throw vRes.error;
-      if (dRes.error) throw dRes.error;
-      setVehicles(vRes.data || []);
-      setDrivers(dRes.data || []);
+      const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
+      if (error) throw error;
+      setVehicles(data || []);
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -176,13 +147,7 @@ export default function VehiclesPage() {
   const handleAdd = async (v: typeof emptyForm) => {
     setSaving(true);
     try {
-      const driver = drivers.find(d => d.id === v.driver_titulaire_id);
-      const payload = {
-        ...v,
-        driver_titulaire_id: v.driver_titulaire_id === 'none' ? null : v.driver_titulaire_id,
-        driver_titulaire_name: driver ? driver.name : null,
-      };
-      const { error } = await supabase.from('vehicles').insert(payload);
+      const { error } = await supabase.from('vehicles').insert(v);
       if (error) throw error;
       toast.success('Véhicule ajouté');
       setShowForm(false);
@@ -198,13 +163,7 @@ export default function VehiclesPage() {
     if (!editingVehicle) return;
     setSaving(true);
     try {
-      const driver = drivers.find(d => d.id === v.driver_titulaire_id);
-      const payload = {
-        ...v,
-        driver_titulaire_id: v.driver_titulaire_id === 'none' ? null : v.driver_titulaire_id,
-        driver_titulaire_name: driver ? driver.name : null,
-      };
-      const { error } = await supabase.from('vehicles').update(payload).eq('id', editingVehicle.id);
+      const { error } = await supabase.from('vehicles').update(v).eq('id', editingVehicle.id);
       if (error) throw error;
       toast.success('Véhicule modifié');
       setEditingVehicle(null);
@@ -258,21 +217,12 @@ export default function VehiclesPage() {
       </div>
 
       {showForm && !editingVehicle && (
-        <VehicleForm mode="add" initial={emptyForm} onSave={handleAdd} onCancel={() => setShowForm(false)} saving={saving} drivers={drivers} />
+        <VehicleForm mode="add" initial={emptyForm} onSave={handleAdd} onCancel={() => setShowForm(false)} saving={saving} />
       )}
       {editingVehicle && (
         <VehicleForm mode="edit"
-          initial={{ 
-            immatriculation: editingVehicle.immatriculation, 
-            brand: editingVehicle.brand, 
-            model: editingVehicle.model, 
-            total_seats: editingVehicle.total_seats, 
-            status: editingVehicle.status, 
-            production_type: editingVehicle.production_type || 'CLASSIQUE',
-            driver_titulaire_id: editingVehicle.driver_titulaire_id || 'none',
-            notes: editingVehicle.notes || '' 
-          }}
-          onSave={handleEdit} onCancel={() => setEditingVehicle(null)} saving={saving} drivers={drivers} />
+          initial={{ immatriculation: editingVehicle.immatriculation, brand: editingVehicle.brand, model: editingVehicle.model, total_seats: editingVehicle.total_seats, status: editingVehicle.status, notes: editingVehicle.notes || '' }}
+          onSave={handleEdit} onCancel={() => setEditingVehicle(null)} saving={saving} />
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -319,19 +269,6 @@ export default function VehiclesPage() {
               </CardHeader>
               <CardContent className="p-5">
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground font-bold text-xs">Catégorie :</span>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest",
-                      v.production_type === 'VIP' ? "bg-primary/20 text-primary" : "bg-secondary text-secondary-foreground"
-                    )}>
-                      {v.production_type || 'CLASSIQUE'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm border-b border-border/50 pb-2">
-                    <span className="text-muted-foreground font-bold text-xs">Chauffeur :</span>
-                    <span className="font-black text-foreground text-xs truncate max-w-[120px]">{v.driver_titulaire_name || 'NON ASSIGNÉ'}</span>
-                  </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground font-bold">Capacité :</span>
                     <span className="font-black text-foreground">{v.total_seats} places</span>

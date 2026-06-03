@@ -7,11 +7,6 @@ import { toast } from 'sonner';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
-import { db } from '../../lib/dexie';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, Legend
-} from 'recharts';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -42,60 +37,36 @@ export default function DashboardPage() {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Exécuter toutes les requêtes en parallèle sur IndexedDB
-      let todayQuery = db.productions.where('date').equals(today);
-      let recentQuery = db.productions.orderBy('date').reverse().limit(5);
-      let allQuery = db.productions.orderBy('date');
+      // Exécuter toutes les requêtes en parallèle pour la performance
+      let todayQuery = supabase.from('productions').select('*').eq('date', today).eq('status', 'VALIDATED');
+      let recentQuery = supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').eq('status', 'VALIDATED').order('created_at', { ascending: false }).limit(5);
+      let trendQuery = supabase.from('productions').select('date, revenue').eq('status', 'VALIDATED').gte('date', sevenDaysAgoStr);
 
       if (!isAdmin && user?.agenceId) {
-        // En vrai avec dexie, c'est plus complexe de filtrer après orderBy.
-        // On va filtrer en mémoire pour faire simple.
+        todayQuery = todayQuery.eq('agence_id', user.agenceId as string);
+        recentQuery = recentQuery.eq('agence_id', user.agenceId as string);
+        trendQuery = trendQuery.eq('agence_id', user.agenceId as string);
       }
 
-      const [allProds, vehicles, drivers, fuelExp, otherExp, washesList] = await Promise.all([
-        db.productions.toArray(),
-        db.vehicles.toArray(),
-        db.drivers.toArray(),
-        db.fuelExpenses.toArray(),
-        db.otherExpenses.where('status').equals('VALIDEE').toArray(),
-        db.washes.toArray()
+      const [todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes] = await Promise.all([
+        todayQuery,
+        recentQuery,
+        supabase.from('vehicles').select('status'),
+        supabase.from('drivers').select('status'),
+        trendQuery
       ]);
 
-      const filteredProds = isAdmin ? allProds : allProds.filter(p => p.agence_id === user?.agenceId);
-      const filteredFuel = isAdmin ? fuelExp : fuelExp.filter(f => f.agence_id === user?.agenceId);
-      const filteredOther = isAdmin ? otherExp : otherExp.filter(o => o.agence_id === user?.agenceId);
-      const filteredWashes = isAdmin ? washesList : washesList.filter(w => w.agence_id === user?.agenceId);
-
-      const todayProds = filteredProds.filter(p => p.date === today && p.status === 'VALIDATED');
+      if (todayProdsRes.error) throw todayProdsRes.error;
       
+      const todayProds = todayProdsRes.data || [];
       const revenue = todayProds.reduce((s, p) => s + Number(p.revenue || 0), 0);
-      
-      // Calculer les dépenses du jour (productions + modules indépendants)
-      const todayFuel = filteredFuel.filter(f => f.date === today).reduce((sum, f) => sum + Number(f.amount), 0);
-      const todayOther = filteredOther.filter(o => o.date === today).reduce((sum, o) => sum + Number(o.total), 0);
-      const todayWashes = filteredWashes.filter(w => w.date === today).reduce((sum, w) => sum + Number(w.amount), 0);
-      
-      const expenses = todayProds.reduce((s, p) => s + Number(p.expense_fuel || 0) + Number(p.expense_toll || 0) + Number(p.expense_washing || 0) + Number(p.expense_others || 0), 0) + todayFuel + todayOther + todayWashes;
-      
-      const net = revenue - expenses;
+      const expenses = todayProds.reduce((s, p) => s + Number(p.expense_fuel || 0) + Number(p.expense_toll || 0) + Number(p.expense_washing || 0) + Number(p.expense_others || 0), 0);
+      const net = todayProds.reduce((s, p) => s + Number(p.net_to_deposit || 0), 0);
 
       // Calculer la tendance hebdomadaire
       const trendMap: Record<string, number> = {};
-      const expenseMap: Record<string, number> = {};
-      
-      filteredProds.filter(p => p.date >= sevenDaysAgoStr && p.status === 'VALIDATED').forEach(p => {
+      trendRes.data?.forEach(p => {
         trendMap[p.date] = (trendMap[p.date] || 0) + Number(p.revenue || 0);
-        expenseMap[p.date] = (expenseMap[p.date] || 0) + Number(p.expense_fuel || 0) + Number(p.expense_toll || 0) + Number(p.expense_washing || 0) + Number(p.expense_others || 0);
-      });
-      
-      filteredFuel.filter(f => f.date >= sevenDaysAgoStr).forEach(f => {
-        expenseMap[f.date] = (expenseMap[f.date] || 0) + Number(f.amount);
-      });
-      filteredOther.filter(o => o.date >= sevenDaysAgoStr).forEach(o => {
-        expenseMap[o.date] = (expenseMap[o.date] || 0) + Number(o.total);
-      });
-      filteredWashes.filter(w => w.date >= sevenDaysAgoStr).forEach(w => {
-        expenseMap[w.date] = (expenseMap[w.date] || 0) + Number(w.amount);
       });
       
       const weeklyTrend = [];
@@ -103,27 +74,21 @@ export default function DashboardPage() {
         const d = new Date();
         d.setDate(d.getDate() - i);
         const dStr = d.toISOString().split('T')[0];
-        weeklyTrend.push({
-          name: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][d.getDay()],
-          revenue: trendMap[dStr] || 0,
-          expenses: expenseMap[dStr] || 0
-        });
+        weeklyTrend.push(trendMap[dStr] || 0);
       }
-
-      const recentProds = filteredProds.filter(p => p.status === 'VALIDATED').sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime()).slice(0, 5);
 
       setData({
         revenue, expenses, net,
-        vehiclesActive: vehicles.filter((v) => v.status === 'ACTIVE').length || 0,
-        vehiclesTotal: vehicles.length || 0,
-        driversAvailable: drivers.filter((d) => d.status === 'AVAILABLE').length || 0,
-        alerts: vehicles.filter((v) => v.status === 'MAINTENANCE').length || 0,
-        recentDepartures: recentProds,
-        weeklyTrend: weeklyTrend as any,
+        vehiclesActive: vehiclesRes.data?.filter((v) => v.status === 'ACTIVE').length || 0,
+        vehiclesTotal: vehiclesRes.data?.length || 0,
+        driversAvailable: driversRes.data?.filter((d) => d.status === 'AVAILABLE').length || 0,
+        alerts: vehiclesRes.data?.filter((v) => v.status === 'MAINTENANCE').length || 0,
+        recentDepartures: recentProdsRes.data || [],
+        weeklyTrend,
         todayEntries: todayProds
       });
     } catch (err: unknown) {
-      console.error(err);
+      toast.error('Erreur de synchronisation', { description: (err as any)?.message });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -240,31 +205,28 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.weeklyTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `${value / 1000}k`} />
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <RechartsTooltip 
-                    contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: any) => [`${Number(value).toLocaleString()} FCFA`, '']}
-                  />
-                  <Legend verticalAlign="top" height={36}/>
-                  <Area type="monotone" name="Recettes" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
-                  <Area type="monotone" name="Dépenses" dataKey="expenses" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExp)" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="h-[280px] w-full flex items-end justify-between px-2 gap-6">
+              {data.weeklyTrend.map((val, i) => (
+                <div key={i} className="flex flex-col items-center flex-1 gap-4 group relative">
+                  {val > 0 && (
+                    <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 scale-90 group-hover:scale-100">
+                      <div className="bg-foreground text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-xl whitespace-nowrap">
+                        {val.toLocaleString()} XAF
+                      </div>
+                      <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1"></div>
+                    </div>
+                  )}
+                  <div className="w-full bg-secondary/50 rounded-2xl relative h-[220px] overflow-hidden">
+                    <div className="absolute bottom-0 w-full bg-primary rounded-2xl transition-all duration-1000 ease-out group-hover:bg-primary/80 cursor-pointer shadow-lg"
+                      style={{ height: `${(val / maxTrend) * 100}%` }}>
+                      <div className="w-full h-full bg-gradient-to-t from-black/10 to-transparent"></div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                    {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][(new Date().getDay() + i + 1) % 7]}
+                  </span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -8,11 +8,10 @@ import {
   TrendingUp, RefreshCw, Star, Bus, MapPin, BarChart3, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '../../lib/supabase';
+import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
-import { db } from '../../lib/dexie';
-import { Skeleton } from '../../components/ui/skeleton';
-import { supabase } from '../../lib/supabase';
 
 //  Types 
 interface ProductionRecord {
@@ -60,12 +59,6 @@ export default function ReportsPage() {
 
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
-  
-  // Nouveaux states pour les dépenses indépendantes
-  const [fuelTotal, setFuelTotal] = useState(0);
-  const [otherTotal, setOtherTotal] = useState(0);
-  const [washTotal, setWashTotal] = useState(0);
-  
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [period, setPeriod] = useState<ReportPeriod>('DAILY');
   const [dateStart, setDateStart] = useState('');
@@ -79,7 +72,7 @@ export default function ReportsPage() {
       .from('agencies')
       .select('id, name, city')
       .order('name')
-      .then(({ data }: any) => {
+      .then(({ data }) => {
         if (data) setAgencies(data);
       });
   }, []);
@@ -88,78 +81,48 @@ export default function ReportsPage() {
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      let query = db.productions.where('status').equals('VALIDATED');
+      let query = supabase
+        .from('productions')
+        .select('*')
+        .eq('status', 'VALIDATED')
+        .order('date', { ascending: false });
+
+      if (!isAdmin && user?.agenceId) {
+        query = query.eq('agence_id', user.agenceId as string);
+      }
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
 
-      let allProductions = await query.toArray();
-      let allFuel = await db.fuelExpenses.toArray();
-      let allOther = await db.otherExpenses.where('status').equals('VALIDEE').toArray();
-      let allWash = await db.washes.toArray();
-
-      if (!isAdmin && user?.agenceId) {
-        allProductions = allProductions.filter(p => p.agence_id === user.agenceId);
-        allFuel = allFuel.filter(f => f.agence_id === user.agenceId);
-        allOther = allOther.filter(o => o.agence_id === user.agenceId);
-        allWash = allWash.filter(w => w.agence_id === user.agenceId);
-      }
-
-      let dateStartFilter = '';
-      let dateEndFilter = '';
-
       if (period === 'DAILY') {
-        dateStartFilter = today;
-        dateEndFilter = today;
+        query = query.gte('date', today).lte('date', today);
       } else if (period === 'WEEKLY') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        dateStartFilter = d.toISOString().split('T')[0];
-        dateEndFilter = today;
+        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
       } else if (period === 'MONTHLY') {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
-        dateStartFilter = d.toISOString().split('T')[0];
-        dateEndFilter = today;
+        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
       } else if (period === 'YEARLY') {
         const d = new Date();
         d.setFullYear(d.getFullYear() - 1);
-        dateStartFilter = d.toISOString().split('T')[0];
-        dateEndFilter = today;
+        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
       } else if (period === 'CUSTOM') {
-        dateStartFilter = dateStart;
-        dateEndFilter = dateEnd;
+        if (dateStart) query = query.gte('date', dateStart);
+        if (dateEnd) query = query.lte('date', dateEnd);
       }
 
-      if (dateStartFilter) {
-        allProductions = allProductions.filter(p => p.date >= dateStartFilter);
-        allFuel = allFuel.filter(f => f.date >= dateStartFilter);
-        allOther = allOther.filter(o => o.date >= dateStartFilter);
-        allWash = allWash.filter(w => w.date >= dateStartFilter);
-      }
-      if (dateEndFilter) {
-        allProductions = allProductions.filter(p => p.date <= dateEndFilter);
-        allFuel = allFuel.filter(f => f.date <= dateEndFilter);
-        allOther = allOther.filter(o => o.date <= dateEndFilter);
-        allWash = allWash.filter(w => w.date <= dateEndFilter);
-      }
+      const { data, error } = await query;
+      if (error) throw error;
       
-      // Injecter le type de production déduit de l'immatriculation et formater
-      const dataWithType = allProductions.map((r: any) => ({
+      // Injecter le type de production déduit de l'immatriculation
+      const dataWithType = (data || []).map((r: any) => ({
         ...r,
-        expense_fuel: r.expenses?.fuel || 0,
-        expense_toll: r.expenses?.toll || 0,
-        expense_washing: r.expenses?.washing || 0,
-        expense_others: r.expenses?.others || 0,
-        production_type: r.immatriculation?.includes('(VIP)') || r.production_type === 'VIP' ? 'VIP' : 'CLASSIQUE'
+        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
       }));
       
-      dataWithType.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
       setRecords(dataWithType);
-      setFuelTotal(allFuel.reduce((sum, f) => sum + Number(f.amount), 0));
-      setOtherTotal(allOther.reduce((sum, o) => sum + Number(o.total), 0));
-      setWashTotal(allWash.reduce((sum, w) => sum + Number(w.amount), 0));
     } catch (err: unknown) {
       const msg = err instanceof Error ? (err as any)?.message : 'Erreur inconnue';
       toast.error('Erreur de chargement', { description: msg });
@@ -173,11 +136,11 @@ export default function ReportsPage() {
   const handleDelete = async (id: string) => {
     if (!canValidate) return;
     if (!window.confirm('Voulez-vous vraiment supprimer cette production ?')) return;
-    try {
-      await db.productions.delete(id);
-      toast.success('Production supprimee');
+    const { error } = await supabase.from('productions').delete().eq('id', id);
+    if (!error) {
+      toast.success('Production supprime');
       fetchReports();
-    } catch (error) {
+    } else {
       toast.error('Erreur de suppression', { description: (error as any)?.message });
     }
   };
@@ -293,14 +256,10 @@ export default function ReportsPage() {
       // Table manuelle
       const colWidths = [50, 40, 55, 55, 55];
       const headers = ['Type', 'Productions', 'Recettes', 'Depenses', 'Net a verser'];
-      const globalExpenses = statsTotal.expenses + fuelTotal + washTotal + otherTotal;
-      const globalNet = statsTotal.revenue - globalExpenses;
-
       const rows = [
         ['CLASSIQUE', String(statsClassique.count), fmt(statsClassique.revenue), fmt(statsClassique.expenses), fmt(statsClassique.net)],
         ['VIP', String(statsVIP.count), fmt(statsVIP.revenue), fmt(statsVIP.expenses), fmt(statsVIP.net)],
-        ['DEP. INDEP.', '-', '-', fmt(fuelTotal + washTotal + otherTotal), `-${fmtCompact(fuelTotal + washTotal + otherTotal)}`],
-        ['TOTAL GLOBAL', String(statsTotal.count), fmt(statsTotal.revenue), fmt(globalExpenses), fmt(globalNet)],
+        ['TOTAL', String(statsTotal.count), fmt(statsTotal.revenue), fmt(statsTotal.expenses), fmt(statsTotal.net)],
       ];
 
       // Draw table header
@@ -395,56 +354,6 @@ export default function ReportsPage() {
     }
   };
 
-  const exportExcel = async () => {
-    setLoading(true);
-    try {
-      const ExcelJS = (await import('exceljs')).default;
-      const workbook = new ExcelJS.Workbook();
-      const sheet = workbook.addWorksheet('Rapport');
-
-      sheet.columns = [
-        { header: 'Date', key: 'date', width: 15 },
-        { header: 'Agence/Ligne', key: 'ligne', width: 20 },
-        { header: 'Immatriculation', key: 'immatriculation', width: 20 },
-        { header: 'Type', key: 'type', width: 15 },
-        { header: 'Recette', key: 'revenue', width: 15 },
-        { header: 'Dépenses Prod', key: 'expenses', width: 15 },
-        { header: 'Net Versé', key: 'net', width: 15 },
-      ];
-
-      filteredRecords.forEach(r => {
-        const expenses = Number(r.expense_fuel || 0) + Number(r.expense_toll || 0) + Number(r.expense_washing || 0) + Number(r.expense_others || 0);
-        const net = Number(r.net_to_deposit) || (Number(r.revenue || 0) - expenses);
-        sheet.addRow({
-          date: r.date,
-          ligne: r.ligne || r.agence_id,
-          immatriculation: r.immatriculation,
-          type: r.production_type,
-          revenue: Number(r.revenue || 0),
-          expenses: expenses,
-          net: net
-        });
-      });
-      
-      sheet.addRow({});
-      sheet.addRow({ date: 'DEPENSES INDEPENDANTES', revenue: 0, expenses: fuelTotal + washTotal + otherTotal, net: -(fuelTotal + washTotal + otherTotal) });
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `rapport-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Rapport Excel exporté !');
-    } catch (err: unknown) {
-      toast.error('Erreur export Excel', { description: (err as any)?.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const PERIODS: { key: ReportPeriod; label: string; icon: string }[] = [
     { key: 'DAILY',   label: "Aujourd'hui", icon: '📅' },
     { key: 'WEEKLY',  label: '7 jours',     icon: '📊' },
@@ -471,13 +380,9 @@ export default function ReportsPage() {
             <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
             Actualiser
           </Button>
-          <Button size="sm" onClick={exportPDF} disabled={loading || filteredRecords.length === 0} className="hidden sm:flex">
+          <Button size="sm" onClick={exportPDF} disabled={loading || filteredRecords.length === 0}>
             <FileDown className="h-4 w-4 mr-2" />
-            PDF
-          </Button>
-          <Button size="sm" variant="secondary" onClick={exportExcel} disabled={loading || filteredRecords.length === 0}>
-            <FileDown className="h-4 w-4 mr-2" />
-            Excel
+            Export PDF
           </Button>
         </div>
       </div>

@@ -17,9 +17,6 @@ export interface Vehicle {
   brand: string;
   model: string;
   lastMaintenance?: string;
-  production_type?: 'VIP' | 'CLASSIQUE';
-  driver_titulaire_name?: string;
-  driver_titulaire_id?: string;
 }
 
 export interface Driver {
@@ -51,8 +48,6 @@ export interface Production {
   netToDeposit: number;
   
   status: 'DRAFT' | 'SUBMITTED' | 'VALIDATED' | 'REJECTED';
-  production_type?: 'VIP' | 'CLASSIQUE';
-  price_per_ticket?: number;
   comments?: string[];
   likes?: number;
   createdBy: string;
@@ -64,62 +59,4 @@ export interface Agency {
   name: string;
   city: string;
   managerId: string;
-}
-
-export interface FuelExpense {
-  id: string;
-  date: string;
-  time: string;
-  user_id: string;
-  user_name: string;
-  ligne: string;
-  agence_id?: string;
-  vehicle_id?: string;
-  immatriculation: string;
-  category: 'VIP' | 'CLASSIQUE';
-  amount: number;
-  notes?: string;
-  created_at?: string;
-  clientId?: string;
-  synced?: boolean;
-}
-
-export interface OtherExpense {
-  id: string;
-  date: string;
-  time: string;
-  author_id: string;
-  author_name: string;
-  agence_id?: string;
-  ligne: string;
-  label: string;
-  motif: string;
-  unit_price: number;
-  quantity: number;
-  total: number;
-  status: 'EN_ATTENTE' | 'VALIDEE' | 'REJETEE';
-  validator_id?: string;
-  validator_name?: string;
-  validated_at?: string;
-  rejection_reason?: string;
-  created_at?: string;
-  clientId?: string;
-  synced?: boolean;
-}
-
-export interface Wash {
-  id: string;
-  date: string;
-  time: string;
-  vehicle_id: string;
-  immatriculation: string;
-  user_id: string;
-  user_name: string;
-  agence_id?: string;
-  ligne?: string;
-  amount: number;
-  notes?: string;
-  created_at?: string;
-  clientId?: string;
-  synced?: boolean;
 }

@@ -14,7 +14,6 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Skeleton } from '../../components/ui/skeleton';
-import { useVehicleAutocomplete } from './hooks/useVehicleAutocomplete';
 
 //  Tarifs dynamiques par agence 
 const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
@@ -88,9 +87,6 @@ export default function ProductionPage() {
   const [agenciesLoading, setAgenciesLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [showVehicleSuggestions, setShowVehicleSuggestions] = useState(false);
-
-  const { searchVehicles, getVehicleByImmat } = useVehicleAutocomplete();
 
   const roleStr = String(user?.role || '').toUpperCase().trim();
   const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
@@ -111,24 +107,8 @@ export default function ProductionPage() {
       others: 0,
       ligne: '',
       productionType: 'CLASSIQUE',
-      immatriculation: '',
     },
   });
-
-  const immatriculation = useWatch({ control, name: 'immatriculation', defaultValue: '' });
-  const vehicleSuggestions = searchVehicles(immatriculation);
-
-  const handleSelectVehicle = (vehicle: any) => {
-    setValue('immatriculation', vehicle.immatriculation, { shouldValidate: true });
-    setValue('totalSeats', vehicle.total_seats, { shouldValidate: true });
-    if (vehicle.driver_titulaire_name) {
-      setValue('driverName', vehicle.driver_titulaire_name, { shouldValidate: true });
-    }
-    if (vehicle.production_type) {
-      setValue('productionType', vehicle.production_type, { shouldValidate: true });
-    }
-    setShowVehicleSuggestions(false);
-  };
 
   // Watchers pour calcul automatique
   const passengersAtDeparture = useWatch({ control, name: 'passengersAtDeparture', defaultValue: 0 }) || 0;
@@ -397,7 +377,7 @@ export default function ProductionPage() {
 
             {/*  Immatriculation + Chauffeur  */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 relative">
+              <div className="space-y-2">
                 <Label htmlFor="immatriculation" className="flex items-center gap-1.5 font-semibold">
                   <Bus className="h-4 w-4 text-primary" />
                   Immatriculation *
@@ -406,31 +386,8 @@ export default function ProductionPage() {
                   id="immatriculation"
                   placeholder="ex: LT-1234-A"
                   className="uppercase font-mono"
-                  autoComplete="off"
                   {...register('immatriculation')}
-                  onChange={(e) => {
-                    register('immatriculation').onChange(e);
-                    setShowVehicleSuggestions(true);
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setShowVehicleSuggestions(false), 200);
-                  }}
                 />
-                {showVehicleSuggestions && vehicleSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-border rounded-md shadow-lg">
-                    {vehicleSuggestions.map((v) => (
-                      <button
-                        key={v.id}
-                        type="button"
-                        className="w-full text-left px-4 py-2 hover:bg-secondary/50 font-mono text-sm"
-                        onClick={() => handleSelectVehicle(v)}
-                      >
-                        <span className="font-bold">{v.immatriculation}</span>
-                        {v.driver_titulaire_name && <span className="text-muted-foreground ml-2 text-xs">({v.driver_titulaire_name})</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 {errors.immatriculation && (
                   <p className="text-xs text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" /> {errors.immatriculation.message}

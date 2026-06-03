@@ -135,9 +135,6 @@ export const MainLayout = () => {
       : []
     ),
     { name: 'Chauffeurs', href: '/app/drivers', icon: Users },
-    { name: 'Carburant', href: '/app/fuel', icon: FileText },
-    { name: 'Autres Dépenses', href: '/app/other-expenses', icon: FileText },
-    { name: 'Lavage', href: '/app/washing', icon: FileText },
     ...(user?.role !== 'CAISSIERE'
       ? [{ name: 'Rapports', href: '/app/reports', icon: FileText }]
       : []
