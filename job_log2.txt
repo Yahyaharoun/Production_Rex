@@ -1,0 +1,206 @@
+﻿2026-06-01T13:16:19.2464609Z Current runner version: '2.334.0'
+2026-06-01T13:16:19.2489999Z ##[group]Runner Image Provisioner
+2026-06-01T13:16:19.2490956Z Hosted Compute Agent
+2026-06-01T13:16:19.2492036Z Version: 20260520.533
+2026-06-01T13:16:19.2492698Z Commit: 189110e25284a9812c124fd27b339e2fb4f2f9db
+2026-06-01T13:16:19.2493522Z Build Date: 2026-05-20T17:44:04Z
+2026-06-01T13:16:19.2494237Z Worker ID: {0cf6bf8c-2a53-41f0-bcd2-99d3acd9ff54}
+2026-06-01T13:16:19.2494996Z Azure Region: westcentralus
+2026-06-01T13:16:19.2495694Z ##[endgroup]
+2026-06-01T13:16:19.2497125Z ##[group]Operating System
+2026-06-01T13:16:19.2497822Z Ubuntu
+2026-06-01T13:16:19.2498421Z 24.04.4
+2026-06-01T13:16:19.2499000Z LTS
+2026-06-01T13:16:19.2499587Z ##[endgroup]
+2026-06-01T13:16:19.2500157Z ##[group]Runner Image
+2026-06-01T13:16:19.2500752Z Image: ubuntu-24.04
+2026-06-01T13:16:19.2501599Z Version: 20260525.161.1
+2026-06-01T13:16:19.2502921Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260525.161/images/ubuntu/Ubuntu2404-Readme.md
+2026-06-01T13:16:19.2504546Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260525.161
+2026-06-01T13:16:19.2505518Z ##[endgroup]
+2026-06-01T13:16:19.2506785Z ##[group]GITHUB_TOKEN Permissions
+2026-06-01T13:16:19.2508637Z Contents: write
+2026-06-01T13:16:19.2509424Z Metadata: read
+2026-06-01T13:16:19.2510007Z ##[endgroup]
+2026-06-01T13:16:19.2512756Z Secret source: Actions
+2026-06-01T13:16:19.2513574Z Prepare workflow directory
+2026-06-01T13:16:19.2850417Z Prepare all required actions
+2026-06-01T13:16:19.2890069Z Getting action download info
+2026-06-01T13:16:54.5776006Z Failed to resolve action download info. Error: Internal Server Error
+2026-06-01T13:16:54.5858492Z Retrying in 14.022 seconds
+2026-06-01T13:17:09.6250981Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-06-01T13:17:09.7144027Z Download action repository 'JamesIves/github-pages-deploy-action@v4' (SHA:d92aa235d04922e8f08b40ce78cc5442fcfbfa2f)
+2026-06-01T13:17:11.6997126Z Complete job name: build-and-deploy
+2026-06-01T13:17:11.7641202Z ##[group]Run actions/checkout@v4
+2026-06-01T13:17:11.7642028Z with:
+2026-06-01T13:17:11.7642346Z   repository: Yahyaharoun/Production_Rex
+2026-06-01T13:17:11.7645837Z   token: ***
+2026-06-01T13:17:11.7646117Z   ssh-strict: true
+2026-06-01T13:17:11.7646395Z   ssh-user: git
+2026-06-01T13:17:11.7646676Z   persist-credentials: true
+2026-06-01T13:17:11.7646976Z   clean: true
+2026-06-01T13:17:11.7647262Z   sparse-checkout-cone-mode: true
+2026-06-01T13:17:11.7647597Z   fetch-depth: 1
+2026-06-01T13:17:11.7647882Z   fetch-tags: false
+2026-06-01T13:17:11.7648172Z   show-progress: true
+2026-06-01T13:17:11.7648463Z   lfs: false
+2026-06-01T13:17:11.7648724Z   submodules: false
+2026-06-01T13:17:11.7649003Z   set-safe-directory: true
+2026-06-01T13:17:11.7649495Z ##[endgroup]
+2026-06-01T13:17:11.8767949Z Syncing repository: Yahyaharoun/Production_Rex
+2026-06-01T13:17:11.8769430Z ##[group]Getting Git version info
+2026-06-01T13:17:11.8770045Z Working directory is '/home/runner/work/Production_Rex/Production_Rex'
+2026-06-01T13:17:11.8770773Z [command]/usr/bin/git version
+2026-06-01T13:17:11.8820646Z git version 2.54.0
+2026-06-01T13:17:11.8844874Z ##[endgroup]
+2026-06-01T13:17:11.8865963Z Temporarily overriding HOME='/home/runner/work/_temp/4ec355a3-a181-47cf-aa61-47f9a0f297e8' before making global git config changes
+2026-06-01T13:17:11.8867298Z Adding repository directory to the temporary git global config as a safe directory
+2026-06-01T13:17:11.8871270Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Production_Rex/Production_Rex
+2026-06-01T13:17:11.8912475Z Deleting the contents of '/home/runner/work/Production_Rex/Production_Rex'
+2026-06-01T13:17:11.8915757Z ##[group]Initializing the repository
+2026-06-01T13:17:11.8919663Z [command]/usr/bin/git init /home/runner/work/Production_Rex/Production_Rex
+2026-06-01T13:17:11.8988099Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-06-01T13:17:11.8989406Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-06-01T13:17:11.8990332Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-06-01T13:17:11.8991068Z hint: call:
+2026-06-01T13:17:11.8991655Z hint:
+2026-06-01T13:17:11.8992195Z hint: 	git config --global init.defaultBranch <name>
+2026-06-01T13:17:11.8992793Z hint:
+2026-06-01T13:17:11.8993245Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-06-01T13:17:11.8993821Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-06-01T13:17:11.8994269Z hint:
+2026-06-01T13:17:11.8994543Z hint: 	git branch -m <name>
+2026-06-01T13:17:11.8994840Z hint:
+2026-06-01T13:17:11.8995228Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-06-01T13:17:11.8995905Z Initialized empty Git repository in /home/runner/work/Production_Rex/Production_Rex/.git/
+2026-06-01T13:17:11.9003152Z [command]/usr/bin/git remote add origin https://github.com/Yahyaharoun/Production_Rex
+2026-06-01T13:17:11.9039562Z ##[endgroup]
+2026-06-01T13:17:11.9040142Z ##[group]Disabling automatic garbage collection
+2026-06-01T13:17:11.9043760Z [command]/usr/bin/git config --local gc.auto 0
+2026-06-01T13:17:11.9071906Z ##[endgroup]
+2026-06-01T13:17:11.9072595Z ##[group]Setting up auth
+2026-06-01T13:17:11.9080094Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-06-01T13:17:11.9112005Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-06-01T13:17:11.9404393Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-06-01T13:17:11.9433240Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-06-01T13:17:11.9658303Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-06-01T13:17:11.9689312Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-06-01T13:17:11.9923521Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-06-01T13:17:11.9957715Z ##[endgroup]
+2026-06-01T13:17:11.9958469Z ##[group]Fetching the repository
+2026-06-01T13:17:11.9966237Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +efd8ec8a90c606ce63b2683467b8d37cf758662d:refs/remotes/origin/master
+2026-06-01T13:17:12.6548314Z From https://github.com/Yahyaharoun/Production_Rex
+2026-06-01T13:17:12.6548971Z  * [new ref]         efd8ec8a90c606ce63b2683467b8d37cf758662d -> origin/master
+2026-06-01T13:17:12.6579378Z ##[endgroup]
+2026-06-01T13:17:12.6580120Z ##[group]Determining the checkout info
+2026-06-01T13:17:12.6582463Z ##[endgroup]
+2026-06-01T13:17:12.6587771Z [command]/usr/bin/git sparse-checkout disable
+2026-06-01T13:17:12.6630146Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-06-01T13:17:12.6656445Z ##[group]Checking out the ref
+2026-06-01T13:17:12.6660543Z [command]/usr/bin/git checkout --progress --force -B master refs/remotes/origin/master
+2026-06-01T13:17:12.6767335Z Reset branch 'master'
+2026-06-01T13:17:12.6769782Z branch 'master' set up to track 'origin/master'.
+2026-06-01T13:17:12.6776169Z ##[endgroup]
+2026-06-01T13:17:12.6812880Z [command]/usr/bin/git log -1 --format=%H
+2026-06-01T13:17:12.6835282Z efd8ec8a90c606ce63b2683467b8d37cf758662d
+2026-06-01T13:17:12.7026050Z ##[group]Run npm install
+2026-06-01T13:17:12.7026451Z [36;1mnpm install[0m
+2026-06-01T13:17:12.7026750Z [36;1mnpx vite build[0m
+2026-06-01T13:17:12.7057107Z shell: /usr/bin/bash -e {0}
+2026-06-01T13:17:12.7057445Z ##[endgroup]
+2026-06-01T13:17:25.4131654Z npm warn deprecated source-map@0.8.0-beta.0: The work that was done in this beta branch won't be included in future versions
+2026-06-01T13:17:27.1492224Z npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+2026-06-01T13:17:32.2435992Z 
+2026-06-01T13:17:32.2436542Z added 596 packages, and audited 597 packages in 17s
+2026-06-01T13:17:32.2436867Z 
+2026-06-01T13:17:32.2437007Z 146 packages are looking for funding
+2026-06-01T13:17:32.2437521Z   run `npm fund` for details
+2026-06-01T13:17:32.2447444Z 
+2026-06-01T13:17:32.2450060Z found 0 vulnerabilities
+2026-06-01T13:17:32.9371657Z [36mvite v8.0.13 [32mbuilding client environment for production...[36m[39m
+2026-06-01T13:17:32.9495752Z [2K
+2026-06-01T13:17:33.8989825Z [31m✗[39m Build failed in 960ms
+2026-06-01T13:17:35.5564622Z [33mwarnings
+2026-06-01T13:17:35.5565220Z transforming...
+2026-06-01T13:17:35.5592886Z   One of the glob patterns doesn't match any files. Please remove or fix the following: {
+2026-06-01T13:17:35.5593607Z [36mPWA v0.21.2[39m
+2026-06-01T13:17:35.5633091Z   "globDirectory": "/home/runner/work/Production_Rex/Production_Rex/dist",
+2026-06-01T13:17:35.5634139Z mode      [35mgenerateSW[39m
+2026-06-01T13:17:35.5635202Z   "globPattern": "**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,jpg,jpeg,webp}",
+2026-06-01T13:17:35.5636149Z precache  [32m0 entries[39m [2m(0.00 KiB)[22m
+2026-06-01T13:17:35.5637025Z   "globIgnores": [
+2026-06-01T13:17:35.5637415Z files generated
+2026-06-01T13:17:35.5638028Z     "**/node_modules/**/*",
+2026-06-01T13:17:35.5638589Z   [2mdist/sw.js[22m
+2026-06-01T13:17:35.5639234Z     "sw.js",
+2026-06-01T13:17:35.5639684Z   [2mdist/workbox-14d7584c.js[22m
+2026-06-01T13:17:35.5640556Z     "workbox-*.js"
+2026-06-01T13:17:35.5641100Z   ]
+2026-06-01T13:17:35.5641751Z }
+2026-06-01T13:17:35.5642575Z [39m
+2026-06-01T13:17:35.5643315Z [31merror during build:
+2026-06-01T13:17:35.5644112Z [31mBuild failed with 1 error:
+2026-06-01T13:17:35.5644624Z 
+2026-06-01T13:17:35.5644959Z [plugin vite-plugin-pwa:build]
+2026-06-01T13:17:35.5645705Z Error: Build failed with 4 errors:
+2026-06-01T13:17:35.5646195Z 
+2026-06-01T13:17:35.5646897Z [31m[UNLOADABLE_DEPENDENCY] [0mCould not load src/modules/auth/LoginPage.tsx
+2026-06-01T13:17:35.5648367Z    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/routes/index.tsx:7:37 [38;5;246m][0m
+2026-06-01T13:17:35.5649449Z    [38;5;246m│[0m
+2026-06-01T13:17:35.5653373Z  [38;5;246m7 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mL[0m[38;5;249mo[0m[38;5;249mg[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249mP[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249ml[0m[38;5;249ma[0m[38;5;249mz[0m[38;5;249my[0m[38;5;249m([0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m([0m"../modules/auth/LoginPage"[38;5;249m)[0m[38;5;249m)[0m[38;5;249m;[0m
+2026-06-01T13:17:35.5657076Z  [38;5;240m  │[0m                                     ─────────────┬─────────────  
+2026-06-01T13:17:35.5658335Z  [38;5;240m  │[0m                                                  ╰─────────────── stream did not contain valid UTF-8
+2026-06-01T13:17:35.5659370Z [38;5;246m───╯[0m
+2026-06-01T13:17:35.5659765Z 
+2026-06-01T13:17:35.5660433Z [31m[UNLOADABLE_DEPENDENCY] [0mCould not load src/modules/drivers/DriversPage.tsx
+2026-06-01T13:17:35.5662348Z     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/routes/index.tsx:11:39 [38;5;246m][0m
+2026-06-01T13:17:35.5663493Z     [38;5;246m│[0m
+2026-06-01T13:17:35.5667564Z  [38;5;246m11 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249me[0m[38;5;249mr[0m[38;5;249ms[0m[38;5;249mP[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249ml[0m[38;5;249ma[0m[38;5;249mz[0m[38;5;249my[0m[38;5;249m([0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m([0m"../modules/drivers/DriversPage"[38;5;249m)[0m[38;5;249m)[0m[38;5;249m;[0m
+2026-06-01T13:17:35.5671702Z  [38;5;240m   │[0m                                       ────────────────┬───────────────  
+2026-06-01T13:17:35.5673078Z  [38;5;240m   │[0m                                                       ╰───────────────── stream did not contain valid UTF-8
+2026-06-01T13:17:35.5674021Z [38;5;246m────╯[0m
+2026-06-01T13:17:35.5674479Z 
+2026-06-01T13:17:35.5675185Z [31m[UNLOADABLE_DEPENDENCY] [0mCould not load src/modules/vehicles/VehiclesPage.tsx
+2026-06-01T13:17:35.5676728Z     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/routes/index.tsx:10:40 [38;5;246m][0m
+2026-06-01T13:17:35.5677605Z     [38;5;246m│[0m
+2026-06-01T13:17:35.5681734Z  [38;5;246m10 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mV[0m[38;5;249me[0m[38;5;249mh[0m[38;5;249mi[0m[38;5;249mc[0m[38;5;249ml[0m[38;5;249me[0m[38;5;249ms[0m[38;5;249mP[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249ml[0m[38;5;249ma[0m[38;5;249mz[0m[38;5;249my[0m[38;5;249m([0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m([0m"../modules/vehicles/VehiclesPage"[38;5;249m)[0m[38;5;249m)[0m[38;5;249m;[0m
+2026-06-01T13:17:35.5685530Z  [38;5;240m   │[0m                                        ─────────────────┬────────────────  
+2026-06-01T13:17:35.5686851Z  [38;5;240m   │[0m                                                         ╰────────────────── stream did not contain valid UTF-8
+2026-06-01T13:17:35.5687844Z [38;5;246m────╯[0m
+2026-06-01T13:17:35.5688276Z 
+2026-06-01T13:17:35.5688863Z [31m[UNLOADABLE_DEPENDENCY] [0mCould not load src/modules/dashboard/DashboardPage.tsx
+2026-06-01T13:17:35.5690376Z    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/routes/index.tsx:9:41 [38;5;246m][0m
+2026-06-01T13:17:35.5691309Z    [38;5;246m│[0m
+2026-06-01T13:17:35.5695536Z  [38;5;246m9 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mD[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mh[0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249md[0m[38;5;249mP[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249ml[0m[38;5;249ma[0m[38;5;249mz[0m[38;5;249my[0m[38;5;249m([0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m([0m"../modules/dashboard/DashboardPage"[38;5;249m)[0m[38;5;249m)[0m[38;5;249m;[0m
+2026-06-01T13:17:35.5698922Z  [38;5;240m  │[0m                                         ──────────────────┬─────────────────  
+2026-06-01T13:17:35.5699916Z  [38;5;240m  │[0m                                                           ╰─────────────────── stream did not contain valid UTF-8
+2026-06-01T13:17:35.5700633Z [38;5;246m───╯[0m
+2026-06-01T13:17:35.5702192Z     at aggregateBindingErrorsIntoJsError (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/rolldown/dist/shared/error-CkdMJ9ps.mjs:48:18)
+2026-06-01T13:17:35.5704032Z     at plugin (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1080:61)
+2026-06-01T13:17:35.5706265Z     at plugin.<computed> (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1625:18)[31m
+2026-06-01T13:17:35.5708165Z     at aggregateBindingErrorsIntoJsError (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/rolldown/dist/shared/error-CkdMJ9ps.mjs:48:18)
+2026-06-01T13:17:35.5709913Z     at unwrapBindingResult (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/rolldown/dist/shared/error-CkdMJ9ps.mjs:18:128)
+2026-06-01T13:17:35.5711674Z     at #build (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/rolldown/dist/shared/rolldown-build-BVD3dIdE.mjs:3275:34)
+2026-06-01T13:17:35.5713229Z     at async buildEnvironment (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/vite/dist/node/chunks/node.js:33133:64)
+2026-06-01T13:17:35.5714715Z     at async Object.build (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/vite/dist/node/chunks/node.js:33555:19)
+2026-06-01T13:17:35.5716221Z     at async Object.buildApp (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/vite/dist/node/chunks/node.js:33552:153)
+2026-06-01T13:17:35.5717667Z     at async CAC.<anonymous> (file:///home/runner/work/Production_Rex/Production_Rex/node_modules/vite/dist/node/cli.js:777:3) {
+2026-06-01T13:17:35.5718562Z   errors: [Getter/Setter]
+2026-06-01T13:17:35.5718981Z }[39m
+2026-06-01T13:17:35.6818941Z ##[error]Process completed with exit code 1.
+2026-06-01T13:17:35.6930963Z Post job cleanup.
+2026-06-01T13:17:35.7881660Z [command]/usr/bin/git version
+2026-06-01T13:17:35.7917053Z git version 2.54.0
+2026-06-01T13:17:35.7957646Z Temporarily overriding HOME='/home/runner/work/_temp/ddb8129b-d64c-4c7e-91ee-6150d3bdc037' before making global git config changes
+2026-06-01T13:17:35.7958448Z Adding repository directory to the temporary git global config as a safe directory
+2026-06-01T13:17:35.7964640Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Production_Rex/Production_Rex
+2026-06-01T13:17:35.7999228Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-06-01T13:17:35.8032215Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-06-01T13:17:35.8266321Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-06-01T13:17:35.8291081Z http.https://github.com/.extraheader
+2026-06-01T13:17:35.8304597Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-06-01T13:17:35.8336764Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-06-01T13:17:35.8565922Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-06-01T13:17:35.8596703Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-06-01T13:17:35.8949297Z Cleaning up orphan processes
+2026-06-01T13:17:35.9150230Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@v4. Actions will be forced to run with Node.js 24 by default starting June 16th, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
