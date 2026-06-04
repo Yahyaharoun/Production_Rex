@@ -171,7 +171,7 @@ export default function OtherExpensesPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-1 transition-opacity">
                           {canValidate(expense.agence_id || '') && expense.status === 'PENDING' && (
                             <>
                               <Button 
