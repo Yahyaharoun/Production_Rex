@@ -102,12 +102,7 @@ export default function UsersPage() {
       return;
     }
 
-    // Chef can only create CAISSIERE for their own agency
-    if (isChef && agenceId !== chefAgenceId && chefAgenceId) {
-      toast.error('Accès refusé', { description: 'Vous ne pouvez créer des caissières que pour votre propre agence.' });
-      return;
-    }
-
+    // Chef can only create for their own agency, we ignore agenceId from form
     // Verify PDG assigns a valid agency
     if (isPDG && (!agenceId || agenceId === 'none')) {
       toast.error('Champs manquants', { description: 'Veuillez assigner une agence (Ligne) à cet utilisateur.' });

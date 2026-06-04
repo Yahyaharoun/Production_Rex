@@ -380,20 +380,22 @@ export default function ProductionPage() {
       await fetchHistory();
       setTimeout(() => setSaved(false), 3000);
 
-      // Afficher le ticket thermique
-      setTicketData({
-        companyName: 'PRODUCTION REX',
-        ticketNumber: clientId,
-        date: new Date().toLocaleDateString('fr-FR'),
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        vehicleImmat: payload.immatriculation,
-        driverName: data.driverName,
-        passengers: data.passengersAtDeparture,
-        revenue: calculatedRevenue,
-        agentName: user?.name || '',
-        ligne: data.ligne,
-        productionType: data.productionType,
-      });
+      // Afficher le ticket thermique uniquement pour les agents de recette
+      if (user?.role === 'AGENT_RECETTE') {
+        setTicketData({
+          companyName: 'PRODUCTION REX',
+          ticketNumber: clientId,
+          date: new Date().toLocaleDateString('fr-FR'),
+          time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          vehicleImmat: payload.immatriculation,
+          driverName: data.driverName,
+          passengers: data.passengersAtDeparture,
+          revenue: calculatedRevenue,
+          agentName: user?.name || '',
+          ligne: data.ligne,
+          productionType: data.productionType,
+        });
+      }
 
       // Réinitialiser partiellement
       reset({
