@@ -44,7 +44,7 @@ export default function OtherExpensesPage() {
       if (!window.confirm('Voulez-vous vraiment valider cette dépense ?')) return;
     }
     
-    await validateExpense(expense.clientId!, action, reason);
+    await validateExpense((expense.id || expense.clientId)!, action, reason);
   };
 
   const filteredExpenses = expenses.filter(e => filter === 'ALL' || e.status === filter);
@@ -195,7 +195,7 @@ export default function OtherExpensesPage() {
                           {(user?.role === 'PDG' || user?.role === 'CHEF_AGENCE') && (
                             <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full" onClick={() => {
                               if (window.confirm('Voulez-vous vraiment supprimer cette dépense ?')) {
-                                deleteExpense(expense.clientId!);
+                                deleteExpense((expense.id || expense.clientId)!);
                               }
                             }} title="Supprimer">
                               <Trash2 className="h-4 w-4" />
