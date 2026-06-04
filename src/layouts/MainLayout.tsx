@@ -210,7 +210,7 @@ export const MainLayout = () => {
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold truncate">{user?.name || 'Utilisateur'}</div>
             <div className="text-xs text-muted-foreground truncate">
-              {user?.role?.replace('_', ' ') || 'Rôle inconnu'}
+              {user?.role === 'CAISSIERE' ? 'AGENT PRODUCTION' : user?.role === 'AGENT_RECETTE' ? 'CAISSIÈRE' : user?.role?.replace('_', ' ') || 'Rôle inconnu'}
             </div>
           </div>
         </div>
