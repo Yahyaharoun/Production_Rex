@@ -354,7 +354,7 @@ export default function UsersPage() {
                             {agencies.find(a => a.id === p.agence_id)?.name || 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {p.role !== 'PDG' && (isPDG || (isChef && p.role === 'CAISSIERE' && p.agence_id === chefAgenceId)) && (
+                            {p.role !== 'PDG' && (isPDG || (isChef && (p.role === 'CAISSIERE' || p.role === 'AGENT_RECETTE') && p.agence_id === chefAgenceId)) && (
                               <div className="flex justify-end gap-2">
                                 <button onClick={() => handleToggleStatus(p.id, p.is_active)}
                                   className={cn("p-2 rounded-lg transition-colors border shadow-sm", p.is_active ? "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100" : "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100")}
