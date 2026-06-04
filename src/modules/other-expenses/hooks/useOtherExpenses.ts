@@ -32,10 +32,11 @@ export function useOtherExpenses() {
         const { data, error } = await query;
         if (error) throw error;
         
-        // Sync to local DB
+        // Sync to local DB and prepare mapped data
+        const mappedData: any[] = [];
         if (data && data.length > 0) {
           for (const exp of data) {
-            await db.otherExpenses.put({
+            const mapped = {
               clientId: exp.id,
               id: exp.id,
               date: exp.date || new Date().toISOString().split('T')[0],
@@ -53,10 +54,14 @@ export function useOtherExpenses() {
               synced: true,
               created_at: exp.created_at,
               createdAt: new Date(exp.created_at).getTime(),
-            });
+              validator_name: exp.validator_name,
+              rejection_reason: exp.rejection_note || exp.rejection_reason
+            };
+            await db.otherExpenses.put(mapped).catch(() => {});
+            mappedData.push(mapped);
           }
         }
-        setExpenses((data || []) as any[]);
+        setExpenses(mappedData);
       } else {
         const localData = await db.otherExpenses.toArray();
         localData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
