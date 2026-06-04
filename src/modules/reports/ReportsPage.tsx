@@ -220,9 +220,11 @@ export default function ReportsPage() {
       return map[key];
     };
 
+    const getAgenceName = (id: string) => agencies.find(a => a.id === id)?.name;
+
     // 1. Productions
     filteredRecords.forEach((r) => {
-      const key = r.ligne || r.agence_id || 'Inconnue';
+      const key = r.ligne || getAgenceName(r.agence_id || '') || r.agence_id || 'Inconnue';
       const stats = getOrCreate(key);
       
       stats.totalCount += 1;
@@ -238,21 +240,21 @@ export default function ReportsPage() {
 
     // 2. Fuel (external)
     fuelRecords.forEach(r => {
-      const key = r.ligne || r.agence_id || 'Inconnue';
+      const key = r.ligne || r.line_name || getAgenceName(r.agence_id || '') || r.agence_id || 'Inconnue';
       const stats = getOrCreate(key);
       stats.fuelExpense += Number(r.amount || 0);
     });
 
     // 3. Washes (external)
     washRecords.forEach(r => {
-      const key = r.ligne || r.agence_id || 'Inconnue';
+      const key = r.ligne || getAgenceName(r.agence_id || '') || r.agence_id || 'Inconnue';
       const stats = getOrCreate(key);
       stats.washExpense += Number(r.amount || 0);
     });
 
     // 4. Other Expenses (external)
     otherRecords.forEach(r => {
-      const key = r.ligne || r.agence_id || 'Inconnue';
+      const key = r.ligne || getAgenceName(r.agence_id || '') || r.agence_id || 'Inconnue';
       const stats = getOrCreate(key);
       stats.otherExpense += Number(r.amount || 0);
     });
@@ -278,7 +280,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({ orientation: 'portrait', format: 'a4' });
+      const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
 
       const periodLabels: Record<ReportPeriod, string> = {
         DAILY: "Aujourd'hui – " + new Date().toLocaleDateString('fr-FR'),
@@ -377,8 +379,8 @@ export default function ReportsPage() {
         'Net à verser'
       ];
       
-      // Total width: ~215
-      const colWidths = [45, 25, 20, 25, 25, 25, 30, 35, 35];
+      // Total width: ~275 (A4 landscape is 297mm)
+      const colWidths = [50, 25, 20, 25, 30, 25, 30, 35, 35];
       
       const tableRows = statsByAgence.map(a => [
         a.name,
@@ -412,6 +414,7 @@ export default function ReportsPage() {
       nextY += 12;
       const summaryRows = [
         ['Recette Brute Totale', fmt(globalRevenue)],
+        ['Carburant Total', fmt(globalFuel)],
         ['Total Dépenses', fmt(globalExpense)],
         ['Net à verser Total', fmt(globalNet)],
       ];

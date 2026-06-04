@@ -271,17 +271,25 @@ export default function ActivityLogPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { type: 'production', label: 'Productions', icon: '🚌', color: 'bg-blue-50 border-blue-200' },
+          { type: 'production', label: 'Recette Nette', icon: '🚌', color: 'bg-blue-50 border-blue-200' },
           { type: 'fuel', label: 'Carburant', icon: '⛽', color: 'bg-amber-50 border-amber-200' },
           { type: 'wash', label: 'Lavages', icon: '🚿', color: 'bg-cyan-50 border-cyan-200' },
           { type: 'other_expense', label: 'Dépenses', icon: '💸', color: 'bg-rose-50 border-rose-200' },
-        ].map(s => (
-          <div key={s.type} className={`rounded-xl border p-3 ${s.color}`}>
-            <div className="text-2xl">{s.icon}</div>
-            <div className="text-xl font-black mt-1">{entries.filter(e => e.type === s.type).length}</div>
-            <div className="text-xs text-muted-foreground">{s.label}</div>
-          </div>
-        ))}
+        ].map(s => {
+          const typeEntries = entries.filter(e => e.type === s.type);
+          const totalAmount = typeEntries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+          return (
+            <div key={s.type} className={`rounded-xl border p-3 ${s.color}`}>
+              <div className="text-2xl">{s.icon}</div>
+              <div className="text-xl font-black mt-1 whitespace-nowrap overflow-hidden text-ellipsis" title={`${totalAmount} F`}>
+                {totalAmount.toLocaleString('fr-FR')} <span className="text-sm font-bold">F</span>
+              </div>
+              <div className="text-xs text-muted-foreground font-semibold">
+                {s.label} ({typeEntries.length})
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <Card>
