@@ -34,7 +34,7 @@ export default function ActivityLogPage() {
         // 1. Productions
         const prodQuery = supabase
           .from('productions')
-          .select('id, date, immatriculation, driver_name, revenue, net_to_deposit, status, caissiere_name, created_at, ligne')
+          .select('id, date, immatriculation, driver_name, revenue, net_to_deposit, status, caissiere_name, created_at, ligne, expense_fuel, production_type')
           .order('created_at', { ascending: false })
           .limit(50);
 
@@ -52,6 +52,19 @@ export default function ActivityLogPage() {
               author: p.caissiere_name,
               vehicle: p.immatriculation,
             });
+
+            if (p.expense_fuel && p.expense_fuel > 0) {
+              all.push({
+                id: `fuel-prod-${p.id}`,
+                date: p.created_at || p.date,
+                type: 'fuel',
+                icon: '⛽',
+                description: `Carburant ${p.production_type || 'CLASSIQUE'} — ${p.immatriculation} · ${p.ligne || ''} (Production)`,
+                amount: p.expense_fuel,
+                author: p.caissiere_name,
+                vehicle: p.immatriculation,
+              });
+            }
           }
         }
 
@@ -137,6 +150,19 @@ export default function ActivityLogPage() {
             status: p.status,
             vehicle: p.immatriculation,
           });
+
+          if (p.expense_fuel && p.expense_fuel > 0) {
+            all.push({
+              id: `fuel-prod-${p.clientId}`,
+              date: p.created_at || p.date,
+              type: 'fuel',
+              icon: '⛽',
+              description: `Carburant ${p.production_type || 'CLASSIQUE'} — ${p.immatriculation} · ${p.ligne || ''} (Production)`,
+              amount: p.expense_fuel,
+              author: p.caissiere_name,
+              vehicle: p.immatriculation,
+            });
+          }
         }
 
         const localFuels = await db.fuelExpenses.toArray();
