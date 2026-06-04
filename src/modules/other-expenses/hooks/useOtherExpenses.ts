@@ -83,9 +83,12 @@ export function useOtherExpenses() {
     const amount = Number(expenseData.unit_price || 0) * Number(expenseData.quantity || 1);
     
     // Payload propre sans le champ 'ligne' qui n'existe pas dans la table Supabase
+    // Mapping des champs pour correspondre à l'ancien schéma (reason, description)
     const payloadForServer = {
       label: expenseData.label,
+      description: expenseData.label, // Fallback pour les anciennes tables
       motif: expenseData.motif,
+      reason: expenseData.motif,      // Fallback pour les anciennes tables
       unit_price: Number(expenseData.unit_price),
       quantity: Number(expenseData.quantity),
       amount,
