@@ -293,7 +293,34 @@ export default function ProductionPage() {
         client_id: clientId,
       };
 
-      if (navigator.onLine) {
+      if (user?.role === 'AGENT_RECETTE') {
+        const localEntry = {
+          clientId,
+          immatriculation: payload.immatriculation,
+          driver_name: payload.driver_name,
+          total_seats: payload.total_seats,
+          passengers_at_departure: payload.passengers_at_departure,
+          revenue: payload.revenue,
+          expense_fuel: payload.expense_fuel,
+          expense_toll: 0,
+          expense_washing: 0,
+          expense_others: 0,
+          net_to_deposit: calculatedNet,
+          production_type: data.productionType,
+          price_per_ticket: pricePerTicket,
+          status: 'TICKET_ONLY',
+          date: payload.date,
+          caissiere_name: payload.caissiere_name,
+          ligne: data.ligne,
+          agence_id: agenceId || '',
+          created_at: new Date().toISOString(),
+          synced: true, // true pour ne pas déclencher la file d'attente
+        };
+        await db.productions.put(localEntry);
+        toast.success('Ticket généré !', {
+          description: `Bordereau prêt pour l'impression.`,
+        });
+      } else if (navigator.onLine) {
         // En ligne : envoi direct à Supabase
         const sanitized = stripSensitiveFields(payload);
         // Remove client_id since it's only for local offline tracking
