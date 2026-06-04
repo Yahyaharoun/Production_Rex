@@ -20,6 +20,10 @@ interface Vehicle {
   total_seats: number;
   status: VehicleStatus;
   notes?: string;
+  default_driver_name?: string;
+  production_type?: 'VIP' | 'CLASSIQUE';
+  is_locked_immat?: boolean;
+  is_locked_seats?: boolean;
 }
 
 const emptyForm = {
@@ -28,7 +32,11 @@ const emptyForm = {
   model: '',
   total_seats: 30,
   status: 'ACTIVE' as VehicleStatus,
-  notes: ''
+  notes: '',
+  default_driver_name: '',
+  production_type: 'CLASSIQUE' as 'VIP' | 'CLASSIQUE',
+  is_locked_immat: false,
+  is_locked_seats: false
 };
 
 function VehicleForm({ mode, initial, onSave, onCancel, saving }: { 
@@ -71,7 +79,8 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
             <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Immatriculation *</Label>
             <Input placeholder="CE 123 4L" value={form.immatriculation}
               onChange={(e) => setForm({ ...form, immatriculation: e.target.value.toUpperCase() })}
-              className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm" />
+              disabled={mode === 'edit' && form.is_locked_immat}
+              className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm disabled:opacity-50" />
             {errors.immatriculation && <p className="text-xs text-destructive font-semibold">{errors.immatriculation}</p>}
           </div>
           <div className="space-y-2">
@@ -92,7 +101,8 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
             <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Capacité (places) *</Label>
             <Input type="number" min={1} value={form.total_seats}
               onChange={(e) => setForm({ ...form, total_seats: parseInt(e.target.value) || 0 })}
-              className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm" />
+              disabled={mode === 'edit' && form.is_locked_seats}
+              className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm disabled:opacity-50" />
             {errors.total_seats && <p className="text-xs text-destructive font-semibold">{errors.total_seats}</p>}
           </div>
           <div className="space-y-2">
@@ -102,6 +112,20 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
               <option value="ACTIVE">Actif</option>
               <option value="MAINTENANCE">En maintenance</option>
               <option value="GARAGE">Au garage</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Chauffeur par défaut</Label>
+            <Input placeholder="Nom du chauffeur" value={form.default_driver_name || ''}
+              onChange={(e) => setForm({ ...form, default_driver_name: e.target.value })}
+              className="bg-secondary/20 border-border text-foreground rounded-xl h-11 focus-visible:ring-primary shadow-sm font-bold text-sm" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Type par défaut</Label>
+            <select value={form.production_type || 'CLASSIQUE'} onChange={(e) => setForm({ ...form, production_type: e.target.value as 'VIP' | 'CLASSIQUE' })}
+              className="w-full rounded-xl bg-secondary/20 border border-border text-foreground h-11 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm font-bold">
+              <option value="CLASSIQUE">Classique</option>
+              <option value="VIP">VIP</option>
             </select>
           </div>
         </div>
@@ -132,9 +156,14 @@ export default function VehiclesPage() {
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
-      if (error) throw error;
-      setVehicles(data || []);
+      if (navigator.onLine) {
+        const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
+        if (error) throw error;
+        setVehicles(data || []);
+      } else {
+        const localData = await db.vehicles.toArray();
+        setVehicles(localData.sort((a, b) => a.immatriculation.localeCompare(b.immatriculation)));
+      }
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -221,7 +250,18 @@ export default function VehiclesPage() {
       )}
       {editingVehicle && (
         <VehicleForm mode="edit"
-          initial={{ immatriculation: editingVehicle.immatriculation, brand: editingVehicle.brand, model: editingVehicle.model, total_seats: editingVehicle.total_seats, status: editingVehicle.status, notes: editingVehicle.notes || '' }}
+          initial={{
+            immatriculation: editingVehicle.immatriculation,
+            brand: editingVehicle.brand,
+            model: editingVehicle.model,
+            total_seats: editingVehicle.total_seats,
+            status: editingVehicle.status,
+            notes: editingVehicle.notes || '',
+            default_driver_name: editingVehicle.default_driver_name || '',
+            is_locked_immat: editingVehicle.is_locked_immat || false,
+            production_type: editingVehicle.production_type || 'CLASSIQUE',
+            ligne: editingVehicle.ligne || ''
+          }}
           onSave={handleEdit} onCancel={() => setEditingVehicle(null)} saving={saving} />
       )}
 

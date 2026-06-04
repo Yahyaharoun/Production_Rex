@@ -1,45 +1,52 @@
 import { useAuthStore } from '../store/useAuthStore';
 
-type Permission = 'read' | 'write' | 'validate' | 'delete';
-type Module = 'production' | 'fuel' | 'other_expenses' | 'wash' | 'vehicle' | 'report' | 'user' | 'activity_log';
-
-export function useRBAC() {
-  const user = useAuthStore((s) => s.user);
-  const role = user?.role?.toUpperCase() || '';
+export const useRBAC = () => {
+  const user = useAuthStore(s => s.user);
+  const role = String(user?.role || '').toUpperCase();
   
-  // PDG / Direction Générale
-  const isPDG = role === 'PDG' || role === 'ADMIN';
-  
-  // Chef d'Agence
-  const isChef = role === 'CHEF_AGENCE' || role === 'CHEF D\'AGENCE' || role === 'CHEF AGENCE';
-  
-  // Caissière
-  const isCaissiere = role === 'CAISSIERE';
-  
-  const userAgenceId = user?.agenceId || '';
-
-  const can = (permission: Permission, module: Module, targetAgenceId?: string): boolean => {
-    if (isPDG) return true; // Accès complet
-
-    if (isChef) {
-      if (permission === 'read') return true; // Lecture toutes lignes
-      if (permission === 'write' || permission === 'validate' || permission === 'delete') {
-        // Validation / Écriture : uniquement sa ligne
-        return targetAgenceId === userAgenceId; 
-      }
+  const can = (action: string, resource: string, agenceId?: string) => {
+    if (role === 'PDG' || role === 'ADMIN') return true;
+    if (role === 'CHEF_AGENCE') {
+      if (agenceId && user?.agenceId !== agenceId) return false;
+      return true; 
     }
-
-    if (isCaissiere) {
-      if (module === 'activity_log') return false;
-      if (permission === 'validate' || permission === 'delete') return false; // Jamais de validation/suppression
-      if (permission === 'read' || permission === 'write') {
-        // Lecture/Écriture : uniquement sa ligne
-        return targetAgenceId === userAgenceId;
-      }
+    if (role === 'CAISSIERE') {
+      if (action === 'write') return true;
+      if (action === 'read') return true;
+      return false;
     }
-
+    // Agent de Recette : peut seulement saisir des productions
+    if (role === 'AGENT_RECETTE') {
+      if (resource === 'productions' && action === 'write') return true;
+      if (resource === 'productions' && action === 'read') return true;
+      return false;
+    }
+    if (role === 'CHAUFFEUR') {
+      return false;
+    }
     return false;
   };
 
-  return { can, isPDG, isChef, isCaissiere, userAgenceId, user };
-}
+  const isAdmin = role === 'PDG' || role === 'ADMIN';
+  const isChef = role === 'CHEF_AGENCE';
+  const isCaissier = role === 'CAISSIERE';
+  const isChauffeur = role === 'CHAUFFEUR';
+  const isAgentRecette = role === 'AGENT_RECETTE';
+
+  return {
+    user,
+    can,
+    isPDG: role === 'PDG',
+    isAdmin,
+    isChef,
+    isCaissier,
+    isChauffeur,
+    isAgentRecette,
+    canValidate: isAdmin || isChef,
+    canDelete: isAdmin || isChef,
+    canViewAllLines: isAdmin || isChef,
+    canManageFuel: role !== 'CHAUFFEUR',
+    canViewLogs: isAdmin || isChef,
+    canAccessReports: isAdmin || isChef,
+  };
+};

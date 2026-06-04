@@ -4,18 +4,18 @@ export interface SyncQueueItem {
   id?: number;
   clientId: string;
   table: string;
-  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  operation: 'INSERT' | 'UPDATE' | 'DELETE';
   payload: Record<string, any>;
-  status: 'PENDING' | 'SYNCING' | 'SYNCED' | 'ERROR';
+  status: 'PENDING' | 'SYNCING' | 'SUCCESS' | 'FAILED' | 'ERROR';
   retries: number;
   errorMessage?: string;
-  createdAt: string;
-  syncedAt?: string;
+  createdAt: number;
+  syncedAt?: number;
 }
 
 export interface OfflineProduction {
   id?: string;
-  clientId?: string;
+  clientId: string;
   immatriculation: string;
   driver_name: string;
   total_seats: number;
@@ -31,64 +31,84 @@ export interface OfflineProduction {
   date: string;
   status: string;
   ligne: string;
-  agence_id: string;
+  agence_id?: string;
   caissiere_name: string;
   created_at: string;
   synced?: boolean;
+  syncStatus?: string;
 }
 
 export interface OfflineFuelExpense {
   id?: string;
-  clientId?: string;
+  clientId: string;
   date: string;
-  time: string;
-  user_id: string;
-  user_name: string;
-  ligne: string;
-  agence_id: string;
-  vehicle_id: string;
-  immatriculation: string;
+  vehicleImmat: string;
+  vehicle_immat?: string;
+  lineName?: string;
+  line_name?: string;
+  agenceId?: string;
+  agence_id?: string;
   category: 'VIP' | 'CLASSIQUE';
   amount: number;
   notes?: string;
+  caissiere_name?: string;
+  created_by?: string;
   synced?: boolean;
+  syncStatus?: string;
+  createdAt: number;
 }
 
 export interface OfflineOtherExpense {
   id?: string;
-  clientId?: string;
+  clientId: string;
   date: string;
-  time: string;
-  author_id: string;
-  author_name: string;
-  agence_id: string;
-  ligne: string;
+  agence_id?: string;
+  agenceId?: string;
   label: string;
-  motif: string;
-  unit_price: number;
-  quantity: number;
-  total: number;
-  status: 'EN_ATTENTE' | 'VALIDEE' | 'REJETEE';
-  validator_id?: string;
-  validator_name?: string;
+  reason?: string;
+  motif?: string;
+  amount: number;
+  status: 'PENDING' | 'VALIDATED' | 'REJECTED' | 'EN_ATTENTE' | 'VALIDEE' | 'REJETEE';
+  caissiere_name?: string;
+  author_name?: string;
+  created_by?: string;
+  validated_by?: string;
   validated_at?: string;
-  rejection_reason?: string;
+  rejection_note?: string;
   synced?: boolean;
+  syncStatus?: string;
+  createdAt?: number;
 }
 
 export interface OfflineWash {
   id?: string;
-  clientId?: string;
+  clientId: string;
   date: string;
-  time: string;
-  vehicle_id: string;
-  immatriculation: string;
-  user_id: string;
-  user_name: string;
-  agence_id: string;
-  ligne: string;
+  vehicleImmat: string;
+  vehicle_immat?: string;
+  agenceId?: string;
+  agence_id?: string;
   amount: number;
+  caissiere_name?: string;
+  created_by?: string;
   notes?: string;
+  synced?: boolean;
+  syncStatus?: string;
+  createdAt: number;
+}
+
+export interface OfflineActivityLog {
+  id?: number;
+  clientId: string;
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  user_id?: string;
+  user_email?: string;
+  description?: string;
+  record_data?: any;
+  table_name?: string;
+  created_at: string;
   synced?: boolean;
 }
 
@@ -100,12 +120,12 @@ export class RexDatabase extends Dexie {
   vehicles!: Table<any>;
   agencies!: Table<any>;
   drivers!: Table<any>;
-  activityLog!: Table<any>;
+  activityLog!: Table<OfflineActivityLog>;
   syncQueue!: Table<SyncQueueItem>;
 
   constructor() {
     super('RexOfflineDB');
-    
+
     this.version(1).stores({
       productions:  'clientId, date, agence_id, synced, immatriculation',
       fuelExpenses: 'clientId, date, agence_id, category, synced',
@@ -115,6 +135,19 @@ export class RexDatabase extends Dexie {
       agencies:     'id, name',
       drivers:      'id, name, status',
       activityLog:  'clientId, created_at, action, entity_type',
+      syncQueue:    '++id, clientId, table, status, createdAt',
+    });
+
+    // Version 2: fix washes index to include vehicleImmat
+    this.version(2).stores({
+      productions:  'clientId, date, agence_id, synced, immatriculation',
+      fuelExpenses: 'clientId, date, vehicleImmat, agenceId, category, synced',
+      otherExpenses:'clientId, date, agence_id, status, synced',
+      washes:       'clientId, date, vehicleImmat, agenceId, synced',
+      vehicles:     'id, immatriculation, status, production_type',
+      agencies:     'id, name',
+      drivers:      'id, name, status',
+      activityLog:  '++id, clientId, created_at, action, entity_type, synced',
       syncQueue:    '++id, clientId, table, status, createdAt',
     });
   }

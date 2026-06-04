@@ -16,7 +16,6 @@ export function OtherExpenseForm({ onSave, onCancel, saving }: OtherExpenseFormP
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     time: new Date().toTimeString().slice(0, 5),
-    ligne: 'Principale', 
     label: '',
     motif: '',
     unit_price: '',

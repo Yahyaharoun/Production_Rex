@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
+import { db } from '../../lib/dexie';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -20,7 +21,9 @@ export default function DashboardPage() {
     driversAvailable: 0, alerts: 0,
     recentDepartures: [] as any[],
     weeklyTrend: [] as number[],
-    todayEntries: [] as any[]
+    todayEntries: [] as any[],
+    fuelVip: 0, fuelClassique: 0, fuelTotal: 0,
+    otherExpenses: 0, washesToday: 0, washesMonth: 0
   });
 
   const fetchDashboard = async (isRefresh = false) => {
@@ -37,23 +40,100 @@ export default function DashboardPage() {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Exécuter toutes les requêtes en parallèle pour la performance
+      // Date 1er du mois
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+
+      if (!navigator.onLine) {
+        // Fallback Hors Ligne
+        const allProds = await db.productions.toArray();
+        const allFuel = await db.fuelExpenses.toArray();
+        const allWashes = await db.washes.toArray();
+        const allOthers = await db.otherExpenses.toArray();
+        const allVehicles = await db.vehicles.toArray();
+        const allDrivers = await db.drivers.toArray();
+
+        // Filtrage agence
+        const userLineIds = (!isAdmin && user?.lineIds) ? user.lineIds : [];
+        const filterByAgence = (item: any) => isAdmin || userLineIds.length === 0 || userLineIds.includes(item.agence_id || item.agenceId);
+
+        const myProds = allProds.filter(filterByAgence);
+        const myFuel = allFuel.filter(filterByAgence);
+        const myWashes = allWashes.filter(filterByAgence);
+        const myOthers = allOthers.filter(filterByAgence);
+
+        const todayProds = myProds.filter(p => p.date === today);
+        const revenue = todayProds.reduce((s, p) => s + Number(p.revenue || 0), 0);
+        const expenses = todayProds.reduce((s, p) => s + Number(p.expense_fuel || 0) + Number(p.expense_toll || 0) + Number(p.expense_washing || 0) + Number(p.expense_others || 0), 0);
+        const net = todayProds.reduce((s, p) => s + Number(p.net_to_deposit || 0), 0);
+
+        const fuelVip = myFuel.filter(f => f.date === today && f.category === 'VIP').reduce((s, f) => s + Number(f.amount || 0), 0);
+        const fuelClassique = myFuel.filter(f => f.date === today && f.category === 'CLASSIQUE').reduce((s, f) => s + Number(f.amount || 0), 0);
+        const fuelTotal = fuelVip + fuelClassique;
+
+        const otherExpenses = myOthers.filter(o => o.date === today).reduce((s, o) => s + Number(o.total || o.amount || 0), 0);
+
+        const washesToday = myWashes.filter(w => w.date === today).length;
+        const washesMonth = myWashes.filter(w => w.date >= firstOfMonth).length;
+
+        const weeklyTrend = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dStr = d.toISOString().split('T')[0];
+          const dayTotal = myProds.filter(p => p.date === dStr).reduce((s, p) => s + Number(p.revenue || 0), 0);
+          weeklyTrend.push(dayTotal);
+        }
+
+        setData({
+          revenue, expenses, net,
+          vehiclesActive: allVehicles.filter(v => v.status === 'ACTIVE').length,
+          vehiclesTotal: allVehicles.length,
+          driversAvailable: allDrivers.filter(d => d.status === 'AVAILABLE').length,
+          alerts: allVehicles.filter(v => v.status === 'MAINTENANCE').length,
+          recentDepartures: myProds.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5),
+          weeklyTrend,
+          todayEntries: todayProds,
+          fuelVip, fuelClassique, fuelTotal,
+          otherExpenses,
+          washesToday,
+          washesMonth
+        });
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       let todayQuery = supabase.from('productions').select('*').eq('date', today).eq('status', 'VALIDATED');
       let recentQuery = supabase.from('productions').select('immatriculation, driver_name, net_to_deposit, created_at').eq('status', 'VALIDATED').order('created_at', { ascending: false }).limit(5);
       let trendQuery = supabase.from('productions').select('date, revenue').eq('status', 'VALIDATED').gte('date', sevenDaysAgoStr);
+      let fuelQuery = supabase.from('fuel_expenses').select('amount, category').eq('date', today);
+      let otherExpensesQuery = supabase.from('other_expenses').select('amount, total').eq('date', today).eq('status', 'VALIDATED');
+      let washesTodayQuery = supabase.from('washes').select('id', { count: 'exact' }).eq('date', today);
+      let washesMonthQuery = supabase.from('washes').select('id', { count: 'exact' }).gte('date', firstOfMonth);
 
-      if (!isAdmin && user?.agenceId) {
-        todayQuery = todayQuery.eq('agence_id', user.agenceId as string);
-        recentQuery = recentQuery.eq('agence_id', user.agenceId as string);
-        trendQuery = trendQuery.eq('agence_id', user.agenceId as string);
+      if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+        todayQuery = todayQuery.in('agence_id', user.lineIds);
+        recentQuery = recentQuery.in('agence_id', user.lineIds);
+        trendQuery = trendQuery.in('agence_id', user.lineIds);
+        fuelQuery = fuelQuery.in('agence_id', user.lineIds);
+        otherExpensesQuery = otherExpensesQuery.in('agence_id', user.lineIds);
+        washesTodayQuery = washesTodayQuery.in('agence_id', user.lineIds);
+        washesMonthQuery = washesMonthQuery.in('agence_id', user.lineIds);
       }
 
-      const [todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes] = await Promise.all([
+      const [
+        todayProdsRes, recentProdsRes, vehiclesRes, driversRes, trendRes,
+        fuelRes, otherExpRes, washesTodayRes, washesMonthRes
+      ] = await Promise.all([
         todayQuery,
         recentQuery,
         supabase.from('vehicles').select('status'),
         supabase.from('drivers').select('status'),
-        trendQuery
+        trendQuery,
+        fuelQuery,
+        otherExpensesQuery,
+        washesTodayQuery,
+        washesMonthQuery
       ]);
 
       if (todayProdsRes.error) throw todayProdsRes.error;
@@ -77,6 +157,15 @@ export default function DashboardPage() {
         weeklyTrend.push(trendMap[dStr] || 0);
       }
 
+      // Calcul carburant
+      const fuelData = fuelRes.data || [];
+      const fuelVip = fuelData.filter(f => f.category === 'VIP').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+      const fuelClassique = fuelData.filter(f => f.category === 'CLASSIQUE').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+      const fuelTotal = fuelVip + fuelClassique;
+
+      // Calcul autres dépenses validées
+      const otherExpenses = (otherExpRes.data || []).reduce((acc, curr) => acc + Number(curr.total || curr.amount || 0), 0);
+
       setData({
         revenue, expenses, net,
         vehiclesActive: vehiclesRes.data?.filter((v) => v.status === 'ACTIVE').length || 0,
@@ -85,10 +174,14 @@ export default function DashboardPage() {
         alerts: vehiclesRes.data?.filter((v) => v.status === 'MAINTENANCE').length || 0,
         recentDepartures: recentProdsRes.data || [],
         weeklyTrend,
-        todayEntries: todayProds
+        todayEntries: todayProds,
+        fuelVip, fuelClassique, fuelTotal,
+        otherExpenses,
+        washesToday: washesTodayRes.count || 0,
+        washesMonth: washesMonthRes.count || 0
       });
     } catch (err: unknown) {
-      toast.error('Erreur de synchronisation', { description: (err as any)?.message });
+      toast.error('Erreur de chargement', { description: (err as any)?.message });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -187,6 +280,45 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-xl font-black text-foreground">{data.vehiclesActive} <span className="text-xs font-medium text-muted-foreground">/ {data.vehiclesTotal} bus</span></div>
             <p className="text-[10px] text-yellow-600 font-black mt-3 uppercase tracking-wider">{data.driversAvailable} Chauffeurs dispo.</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Nouveaux KPIs Opérationnels (Carburant, Lavage, Dépenses) */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-amber-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Carburant (Jour)</CardTitle>
+            <div className="p-2 bg-amber-500/10 rounded-xl text-amber-600"><TrendingUp className="h-5 w-5" /></div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-black text-foreground">{data.fuelTotal.toLocaleString()} <span className="text-xs">XAF</span></div>
+            <div className="flex justify-between items-center mt-3">
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">VIP: {data.fuelVip.toLocaleString()}</span>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase">Classique: {data.fuelClassique.toLocaleString()}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-cyan-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Lavages</CardTitle>
+            <div className="p-2 bg-cyan-500/10 rounded-xl text-cyan-600"><Database className="h-5 w-5" /></div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-black text-foreground">{data.washesToday} <span className="text-xs font-medium text-muted-foreground">Aujourd'hui</span></div>
+            <p className="text-[10px] text-cyan-600 font-black mt-3 uppercase tracking-wider">{data.washesMonth} ce mois</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-border shadow-sm rounded-[1.25rem] hover:shadow-xl transition-all border-l-4 border-l-purple-500 md:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Autres Dépenses Validées (Jour)</CardTitle>
+            <div className="p-2 bg-purple-500/10 rounded-xl text-purple-600"><Banknote className="h-5 w-5" /></div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-black text-foreground">{data.otherExpenses.toLocaleString()} <span className="text-xs">XAF</span></div>
+            <p className="text-[10px] text-purple-600 font-black mt-3 uppercase tracking-wider">Dépenses exceptionnelles du jour</p>
           </CardContent>
         </Card>
       </div>

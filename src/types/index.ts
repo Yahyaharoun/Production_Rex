@@ -1,4 +1,4 @@
-export type Role = 'PDG' | 'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR';
+export type Role = 'PDG' | 'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR' | 'AGENT_RECETTE';
 
 export interface User {
   id: string;
@@ -6,7 +6,9 @@ export interface User {
   name: string;
   role: Role;
   agenceId?: string;
+  lineIds?: string[];
   isActive: boolean;
+  agence_name?: string;
 }
 
 export interface Vehicle {

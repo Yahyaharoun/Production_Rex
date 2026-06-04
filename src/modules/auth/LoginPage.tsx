@@ -7,11 +7,13 @@ import { Label } from '../../components/ui/label';
 import { Mail, Lock, Loader2, LogIn, Bus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const isOnline = useOnlineStatus();
   
   const { login } = useAuthStore();
   const navigate = useNavigate();
@@ -54,6 +56,7 @@ export default function LoginPage() {
         name: profile?.name || 'Utilisateur',
         role: (profile?.role?.toUpperCase() || 'CHAUFFEUR') as any,
         agenceId: profile?.agence_id || '',
+        lineIds: profile?.line_ids || (profile?.agence_id ? [profile.agence_id] : []),
         isActive: profile?.is_active ?? true
       }, data.session.access_token);
 
@@ -81,6 +84,17 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
+          {!isOnline && (
+            <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-4 rounded-lg text-sm">
+              <p className="font-bold flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> Mode Hors Ligne
+              </p>
+              <p className="mt-1">
+                La connexion requiert Internet. Si vous venez d'installer l'application (PWA), 
+                vous <strong>devez</strong> vous connecter au moins une fois en ligne pour synchroniser vos données locales.
+              </p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-[10px] font-black uppercase tracking-[0.2em] ml-1 text-muted-foreground">Email Professionnel</Label>
             <div className="relative">

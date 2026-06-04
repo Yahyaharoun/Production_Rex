@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { FileText, Loader2, Save, Trash2, CarFront, AlertCircle, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, Save, Trash2, Bus, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -16,32 +16,35 @@ import { useRBAC } from '../../hooks/useRBAC';
 
 const normalize = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
 
-const washSchema = z.object({
+const fuelSchema = z.object({
   vehicleImmat: z.string().min(1, "L'immatriculation est requise"),
-  amount: z.coerce.number().min(0, 'Montant requis'),
+  amount: z.coerce.number().min(1, 'Montant requis'),
+  category: z.enum(['VIP', 'CLASSIQUE'], { message: 'Sélectionnez la catégorie' }),
+  lineName: z.string().min(1, 'Ligne requise'),
+  notes: z.string().optional(),
 });
 
-type WashFormValues = z.infer<typeof washSchema>;
+type FuelFormValues = z.infer<typeof fuelSchema>;
 
-export default function WashingControlPage() {
+export default function FuelExpensePage() {
   const { user } = useAuthStore();
   const { canManageFuel, canDelete } = useRBAC();
-  const [washes, setWashes] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [vehicles, setVehicles] = useState<any[]>([]);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<WashFormValues>({
-    resolver: zodResolver(washSchema),
-    defaultValues: { vehicleImmat: '', amount: 1000 }
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<FuelFormValues>({
+    resolver: zodResolver(fuelSchema),
+    defaultValues: { amount: 0, category: 'CLASSIQUE', vehicleImmat: '', lineName: '', notes: '' }
   });
 
-  const loadWashes = async () => {
+  const loadExpenses = async () => {
     setLoading(true);
     try {
       if (navigator.onLine) {
         let query = supabase
-          .from('washes')
+          .from('fuel_expenses')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(100);
@@ -52,36 +55,39 @@ export default function WashingControlPage() {
 
         const { data, error } = await query;
         if (error) throw error;
-        setWashes(data || []);
+        setExpenses(data || []);
 
         // Update local cache
         if (data && data.length > 0) {
-          for (const w of data) {
-            await db.washes.put({
-              clientId: w.id,
-              id: w.id,
-              date: w.date,
-              vehicleImmat: w.vehicle_immat,
-              vehicle_immat: w.vehicle_immat,
-              agenceId: w.agence_id,
-              agence_id: w.agence_id,
-              amount: w.amount,
-              caissiere_name: w.caissiere_name,
-              created_by: w.created_by,
+          for (const exp of data) {
+            await db.fuelExpenses.put({
+              clientId: exp.id,
+              id: exp.id,
+              date: exp.date,
+              vehicleImmat: exp.vehicle_immat,
+              vehicle_immat: exp.vehicle_immat,
+              lineName: exp.line_name,
+              agenceId: exp.agence_id,
+              category: exp.category,
+              amount: exp.amount,
+              notes: exp.notes,
+              caissiere_name: exp.caissiere_name,
+              created_by: exp.created_by,
               syncStatus: 'SYNCED',
-              createdAt: new Date(w.created_at).getTime(),
+              createdAt: new Date(exp.created_at).getTime(),
             });
           }
         }
       } else {
-        const localData = await db.washes.toArray();
-        setWashes(localData.sort((a, b) => b.createdAt - a.createdAt));
+        const localData = await db.fuelExpenses.toArray();
+        setExpenses(localData.sort((a, b) => b.createdAt - a.createdAt));
       }
     } catch (err: any) {
-      toast.error('Erreur chargement lavages: ' + err.message);
+      toast.error('Erreur chargement carburant: ' + err.message);
+      // Fallback to local data
       try {
-        const localData = await db.washes.toArray();
-        setWashes(localData.sort((a, b) => b.createdAt - a.createdAt));
+        const localData = await db.fuelExpenses.toArray();
+        setExpenses(localData.sort((a, b) => b.createdAt - a.createdAt));
       } catch (_) {}
     } finally {
       setLoading(false);
@@ -102,12 +108,12 @@ export default function WashingControlPage() {
         setVehicles(local);
       }
     } catch (err) {
-      console.warn('[WashPage] fetchVehicles error:', err);
+      console.warn('[FuelPage] fetchVehicles error:', err);
     }
   };
 
   useEffect(() => {
-    loadWashes();
+    loadExpenses();
     fetchVehicles();
   }, [user]);
 
@@ -130,7 +136,7 @@ export default function WashingControlPage() {
           if (found) return found;
         }
       } catch (err) {
-        console.warn('[WashPage] Supabase vehicles fetch error:', err);
+        console.warn('[FuelPage] Supabase vehicles fetch error:', err);
       }
     }
 
@@ -139,12 +145,10 @@ export default function WashingControlPage() {
     return local.find(v => normalize(v.immatriculation) === searchImmat) || null;
   };
 
-  const onSubmit = async (data: WashFormValues) => {
+  const onSubmit = async (data: FuelFormValues) => {
     if (!canManageFuel) return toast.error('Non autorisé');
 
     setSaving(true);
-    const todayStr = new Date().toISOString().split('T')[0];
-
     try {
       // 1. Valider que le véhicule existe
       const vehicle = await findVehicle(data.vehicleImmat);
@@ -157,45 +161,13 @@ export default function WashingControlPage() {
         return;
       }
 
-      // 2. Vérifier doublon lavage aujourd'hui (côté client via state)
-      const norm = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
-      const hasDuplicateLocal = washes.some(w => {
-        const washDate = (w.date || '').split('T')[0];
-        return washDate === todayStr && (
-          norm(w.vehicle_immat || '') === norm(vehicle.immatriculation) ||
-          norm(w.vehicleImmat || '') === norm(vehicle.immatriculation)
-        );
-      });
-
-      if (hasDuplicateLocal) {
-        toast.error(`Lavage déjà enregistré`, {
-          description: `Le véhicule ${vehicle.immatriculation} a déjà été lavé aujourd'hui.`,
-        });
-        setSaving(false);
-        return;
-      }
-
-      // 3. Vérifier doublon côté Supabase (sécurité supplémentaire)
-      if (navigator.onLine) {
-        const { data: remoteDup } = await supabase
-          .from('washes')
-          .select('id')
-          .eq('vehicle_immat', vehicle.immatriculation)
-          .eq('date', todayStr)
-          .maybeSingle();
-
-        if (remoteDup) {
-          toast.error(`Lavage déjà enregistré`, {
-            description: `Le véhicule ${vehicle.immatriculation} a déjà été lavé aujourd'hui.`,
-          });
-          setSaving(false);
-          return;
-        }
-      }
-
+      const todayStr = new Date().toISOString().split('T')[0];
       const payload = {
         vehicle_immat: vehicle.immatriculation,
         amount: data.amount,
+        category: data.category,
+        line_name: data.lineName,
+        notes: data.notes || null,
         agence_id: user?.agenceId || null,
         caissiere_name: user?.name || null,
         created_by: user?.id || null,
@@ -203,37 +175,43 @@ export default function WashingControlPage() {
       };
 
       if (navigator.onLine) {
-        // 4a. Insertion directe dans Supabase
-        const { data: inserted, error } = await supabase.from('washes').insert(payload).select().single();
+        // 2a. Insertion directe dans Supabase
+        const { data: inserted, error } = await supabase.from('fuel_expenses').insert(payload).select().single();
         if (error) throw error;
 
-        await db.washes.put({
+        // Mise à jour du cache local avec le vrai ID Supabase
+        await db.fuelExpenses.put({
           clientId: inserted.id,
           id: inserted.id,
           date: todayStr,
           vehicleImmat: vehicle.immatriculation,
           vehicle_immat: vehicle.immatriculation,
+          lineName: data.lineName,
           agenceId: user?.agenceId || '',
-          agence_id: user?.agenceId || undefined,
+          category: data.category,
           amount: data.amount,
+          notes: data.notes,
           caissiere_name: user?.name,
           created_by: user?.id,
           syncStatus: 'SYNCED',
           createdAt: Date.now(),
         });
 
-        await logActivity('INSERT', 'washes', `Lavage enregistré pour ${vehicle.immatriculation}: ${data.amount} FCFA`, payload, user?.id, user?.email);
+        await logActivity('INSERT', 'fuel_expenses', `Carburant enregistré pour ${vehicle.immatriculation}: ${data.amount} FCFA`, payload, user?.id, user?.email);
       } else {
-        // 4b. File d'attente pour synchronisation ultérieure
-        const clientId = await queueSync('washes', 'INSERT', payload);
+        // 2b. Mise en file d'attente pour synchronisation ultérieure
+        const clientId = await queueSync('fuel_expenses', 'INSERT', payload);
 
-        await db.washes.put({
+        await db.fuelExpenses.put({
           clientId,
           date: todayStr,
           vehicleImmat: vehicle.immatriculation,
           vehicle_immat: vehicle.immatriculation,
+          lineName: data.lineName,
           agenceId: user?.agenceId || '',
+          category: data.category,
           amount: data.amount,
+          notes: data.notes,
           caissiere_name: user?.name,
           created_by: user?.id,
           syncStatus: 'PENDING',
@@ -241,52 +219,52 @@ export default function WashingControlPage() {
         });
       }
 
-      toast.success('Lavage enregistré', { description: `${vehicle.immatriculation} — ${data.amount.toLocaleString('fr-FR')} FCFA` });
+      toast.success('Dépense carburant enregistrée', { description: `${vehicle.immatriculation} — ${data.amount.toLocaleString('fr-FR')} FCFA` });
       reset();
-      loadWashes();
+      loadExpenses();
     } catch (err: any) {
-      toast.error(err.message || 'Erreur lors de l\'enregistrement');
+      toast.error('Erreur enregistrement carburant', { description: err.message });
     } finally {
       setSaving(false);
     }
   };
 
 
-
   const handleDelete = async (id: string, clientId: string) => {
     if (!canDelete) return toast.error('Non autorisé');
-    if (!confirm('Supprimer ce lavage ?')) return;
+    if (!confirm('Supprimer cette dépense carburant ?')) return;
 
     try {
       if (navigator.onLine && id) {
-        const { error } = await supabase.from('washes').delete().eq('id', id);
+        const { error } = await supabase.from('fuel_expenses').delete().eq('id', id);
         if (error) throw error;
       } else {
-        await queueSync('washes', 'DELETE', { id: id || clientId });
+        await queueSync('fuel_expenses', 'DELETE', { id: id || clientId });
       }
 
+      // Remove from local cache
       const idToDelete = id || clientId;
-      await db.washes.where('clientId').equals(idToDelete).delete().catch(() => {});
+      await db.fuelExpenses.where('clientId').equals(idToDelete).delete().catch(() => {});
 
-      toast.success('Lavage supprimé');
-      loadWashes();
+      toast.success('Dépense supprimée');
+      loadExpenses();
     } catch (err: any) {
-      toast.error('Erreur: ' + err.message);
+      toast.error('Erreur suppression: ' + err.message);
     }
   };
 
   if (!canManageFuel) {
-    return <div className="p-4 text-center text-muted-foreground">Accès non autorisé au module Lavage.</div>;
+    return <div className="p-4 text-center text-muted-foreground">Accès non autorisé au module Carburant.</div>;
   }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Contrôle Lavage</h1>
-          <p className="text-muted-foreground">Enregistrement des lavages (Max 1 par véhicule par jour)</p>
+          <h1 className="text-2xl font-bold tracking-tight">Carburant Avancé</h1>
+          <p className="text-muted-foreground">Gestion du carburant VIP et Classique</p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadWashes} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={loadExpenses} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Actualiser
         </Button>
@@ -297,8 +275,8 @@ export default function WashingControlPage() {
         <Card className="md:col-span-1 h-fit">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <CarFront className="h-5 w-5 text-primary" />
-              Nouveau lavage
+              <Bus className="h-5 w-5 text-primary" />
+              Nouvelle dépense
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -310,9 +288,32 @@ export default function WashingControlPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Ligne</Label>
+                <Input {...register('lineName')} placeholder="Ex: Yaoundé - Douala" />
+                {errors.lineName && <p className="text-xs text-red-500">{errors.lineName.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Catégorie</Label>
+                <select
+                  {...register('category')}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="CLASSIQUE">Classique</option>
+                  <option value="VIP">VIP</option>
+                </select>
+                {errors.category && <p className="text-xs text-red-500">{errors.category.message}</p>}
+              </div>
+
+              <div className="space-y-2">
                 <Label>Montant (FCFA)</Label>
                 <Input type="number" {...register('amount')} />
                 {errors.amount && <p className="text-xs text-red-500">{errors.amount.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes (Optionnel)</Label>
+                <Input {...register('notes')} placeholder="Détails supplémentaires..." />
               </div>
 
               <Button type="submit" className="w-full" disabled={saving}>
@@ -328,14 +329,14 @@ export default function WashingControlPage() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              Historique des lavages ({washes.length} entrée{washes.length !== 1 ? 's' : ''})
+              Historique récent ({expenses.length} entrée{expenses.length !== 1 ? 's' : ''})
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-            ) : washes.length === 0 ? (
-              <div className="text-center p-8 text-muted-foreground">Aucun lavage enregistré.</div>
+            ) : expenses.length === 0 ? (
+              <div className="text-center p-8 text-muted-foreground">Aucune dépense enregistrée.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
@@ -343,27 +344,35 @@ export default function WashingControlPage() {
                     <tr>
                       <th className="px-4 py-3 rounded-tl-lg">Date</th>
                       <th className="px-4 py-3">Véhicule</th>
+                      <th className="px-4 py-3">Ligne</th>
+                      <th className="px-4 py-3">Catégorie</th>
                       <th className="px-4 py-3">Montant</th>
                       <th className="px-4 py-3">Auteur</th>
                       {canDelete && <th className="px-4 py-3 rounded-tr-lg"></th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {washes.map((wash: any, i) => (
-                      <tr key={wash.id || wash.clientId || i} className="border-b border-border/50 hover:bg-muted/20">
+                    {expenses.map((exp: any, i) => (
+                      <tr key={exp.id || exp.clientId || i} className="border-b border-border/50 hover:bg-muted/20">
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {wash.date ? new Date(wash.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—'}
-                          {wash.syncStatus === 'PENDING' && <AlertCircle className="inline h-3 w-3 text-yellow-500 ml-1" title="En attente de sync" />}
+                          {exp.date ? new Date(exp.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—'}
+                          {(exp.syncStatus === 'PENDING') && <AlertCircle className="inline h-3 w-3 text-yellow-500 ml-1" title="En attente de sync" />}
                         </td>
-                        <td className="px-4 py-3 font-medium font-mono">{wash.vehicle_immat || wash.vehicleImmat || '—'}</td>
-                        <td className="px-4 py-3 font-semibold">{Number(wash.amount).toLocaleString('fr-FR')} FCFA</td>
-                        <td className="px-4 py-3 text-muted-foreground">{wash.caissiere_name || user?.name || '—'}</td>
+                        <td className="px-4 py-3 font-medium font-mono">{exp.vehicle_immat || exp.vehicleImmat || '—'}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{exp.line_name || exp.lineName || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exp.category === 'VIP' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {exp.category}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-semibold">{Number(exp.amount).toLocaleString('fr-FR')} FCFA</td>
+                        <td className="px-4 py-3 text-muted-foreground">{exp.caissiere_name || '—'}</td>
                         {canDelete && (
                           <td className="px-4 py-3 text-right">
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(wash.id, wash.client_id || wash.clientId)}
+                              onClick={() => handleDelete(exp.id, exp.client_id || exp.clientId)}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />

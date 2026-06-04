@@ -31,3 +31,8 @@ backend/.env
 
 .vercel
 push_*.ps1
+
+.vercel
+.env*
+Yahya-dev.github.io/
+audit-report.json

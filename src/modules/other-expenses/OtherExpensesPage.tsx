@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { FileText, Plus, Clock, Filter, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Plus, Clock, Filter, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { useOtherExpenses } from './hooks/useOtherExpenses';
 import { OtherExpenseForm } from './OtherExpenseForm';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -11,14 +11,14 @@ import { useRBAC } from '../../hooks/useRBAC';
 import { OtherExpense } from '../../types';
 
 export default function OtherExpensesPage() {
-  const { expenses, loading, addExpense, validateExpense } = useOtherExpenses();
+  const { expenses, loading, addExpense, validateExpense, deleteExpense } = useOtherExpenses();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'EN_ATTENTE' | 'VALIDEE' | 'REJETEE'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'VALIDATED' | 'REJECTED'>('ALL');
   const { can, user } = useRBAC();
   const canAdd = can('write', 'other_expenses');
   // Caissiere cannot validate. Chef can validate their own agency.
-  const canValidate = (agenceId: string) => can('validate', 'other_expenses', agenceId);
+  const canValidate = (agenceId: string) => can('write', 'other_expenses', agenceId) && (user?.role === 'PDG' || user?.role === 'CHEF_AGENCE');
 
   const handleSave = async (data: any) => {
     setSaving(true);
@@ -30,9 +30,9 @@ export default function OtherExpensesPage() {
     }
   };
 
-  const handleAction = async (expense: OtherExpense, action: 'VALIDEE' | 'REJETEE') => {
+  const handleAction = async (expense: OtherExpense, action: 'VALIDATED' | 'REJECTED') => {
     let reason = '';
-    if (action === 'REJETEE') {
+    if (action === 'REJECTED') {
       const input = prompt('Veuillez indiquer le motif du rejet :');
       if (input === null) return;
       if (!input.trim()) {
@@ -51,11 +51,11 @@ export default function OtherExpensesPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'EN_ATTENTE':
+      case 'PENDING':
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700">En attente</span>;
-      case 'VALIDEE':
+      case 'VALIDATED':
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700">Validée</span>;
-      case 'REJETEE':
+      case 'REJECTED':
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700">Rejetée</span>;
       default:
         return null;
@@ -96,9 +96,9 @@ export default function OtherExpensesPage() {
               className="rounded-xl bg-white border border-border h-9 px-3 text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="ALL">Tous les statuts</option>
-              <option value="EN_ATTENTE">En attente</option>
-              <option value="VALIDEE">Validées</option>
-              <option value="REJETEE">Rejetées</option>
+              <option value="PENDING">En attente</option>
+              <option value="VALIDATED">Validées</option>
+              <option value="REJECTED">Rejetées</option>
             </select>
           </div>
         </CardHeader>
@@ -122,7 +122,7 @@ export default function OtherExpensesPage() {
                     <th className="px-6 py-4">Auteur</th>
                     <th className="px-6 py-4 text-right">Montant Total</th>
                     <th className="px-6 py-4">Statut</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
+                    <th className="px-6 py-4 text-right"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -142,8 +142,8 @@ export default function OtherExpensesPage() {
                         {expense.author_name}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="font-black text-foreground">{expense.total.toLocaleString()} FCFA</div>
-                        <div className="text-[10px] text-muted-foreground">{expense.quantity} x {expense.unit_price.toLocaleString()}</div>
+                        <div className="font-black text-foreground">{(expense.amount || (expense.total as any) || 0).toLocaleString()} FCFA</div>
+                        <div className="text-[10px] text-muted-foreground">{expense.quantity} x {(expense.unit_price || 0).toLocaleString()}</div>
                       </td>
                       <td className="px-6 py-4">
                         {getStatusBadge(expense.status)}
@@ -152,31 +152,56 @@ export default function OtherExpensesPage() {
                             Par {expense.validator_name}
                           </div>
                         )}
-                        {expense.status === 'REJETEE' && expense.rejection_reason && (
-                          <div className="text-[9px] text-rose-600 truncate max-w-[150px]" title={expense.rejection_reason}>
-                            Motif: {expense.rejection_reason}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {expense.status === 'EN_ATTENTE' && canValidate(expense.agence_id || '') ? (
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button size="sm" variant="outline" className="h-8 border-emerald-200 text-emerald-600 hover:bg-emerald-50 rounded-lg" onClick={() => handleAction(expense, 'VALIDEE')} title="Valider">
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-8 border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg" onClick={() => handleAction(expense, 'REJETEE')} title="Rejeter">
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            {expense.synced ? (
-                              <span className="text-emerald-500 text-xs font-bold" title="Synchronisé">✅ Sync</span>
-                            ) : (
-                              <span className="text-amber-500 text-xs font-bold" title="En attente de synchronisation">⏳ Local</span>
+                        {expense.status !== 'PENDING' && (
+                          <div className="text-[10px] text-muted-foreground mt-1">
+                            par {expense.validator_name || 'Admin'}
+                            {expense.rejection_reason && (
+                              <div className="text-rose-600 truncate max-w-[150px]" title={expense.rejection_reason}>
+                                Motif: {expense.rejection_reason}
+                              </div>
                             )}
                           </div>
                         )}
+                        <div className="mt-1">
+                          {expense.synced ? (
+                            <span className="text-emerald-500 text-[9px] font-bold" title="Synchronisé">✅ Sync</span>
+                          ) : (
+                            <span className="text-amber-500 text-[9px] font-bold" title="En attente de synchronisation">⏳ Local</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {canValidate(expense.agence_id || '') && expense.status === 'PENDING' && (
+                            <>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-full"
+                                onClick={() => handleAction(expense, 'VALIDATED')}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-full"
+                                onClick={() => handleAction(expense, 'REJECTED')}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          {(user?.role === 'PDG' || user?.role === 'CHEF_AGENCE') && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full" onClick={() => {
+                              if (window.confirm('Voulez-vous vraiment supprimer cette dépense ?')) {
+                                deleteExpense(expense.clientId!);
+                              }
+                            }} title="Supprimer">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

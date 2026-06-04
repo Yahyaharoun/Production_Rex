@@ -13,6 +13,10 @@ const ProductionPage = lazy(() => import('../modules/production/ProductionPage')
 const ReportsPage = lazy(() => import('../modules/reports/ReportsPage'));
 const UsersPage = lazy(() => import('../modules/users/UsersPage'));
 
+const FuelExpensePage = lazy(() => import('../modules/fuel-expenses/FuelExpensePage'));
+const OtherExpensesPage = lazy(() => import('../modules/other-expenses/OtherExpensesPage'));
+const WashingControlPage = lazy(() => import('../modules/washing-control/WashingControlPage'));
+const ActivityLogPage = lazy(() => import('../modules/activity-log/ActivityLogPage'));
 export const router = createHashRouter([
   {
     path: '/',
@@ -46,6 +50,9 @@ export const router = createHashRouter([
           },
           { path: 'drivers', element: <DriversPage /> },
           { path: 'production', element: <ProductionPage /> },
+          { path: 'fuel-expenses', element: <FuelExpensePage /> },
+          { path: 'other-expenses', element: <OtherExpensesPage /> },
+          { path: 'washing-control', element: <WashingControlPage /> },
           { 
             path: 'reports', 
             element: (
@@ -62,10 +69,19 @@ export const router = createHashRouter([
               </ProtectedRoute>
             )
           },
+          { 
+            path: 'activity-log', 
+            element: (
+              <ProtectedRoute requiredRole={['PDG', 'CHEF_AGENCE']}>
+                <ActivityLogPage />
+              </ProtectedRoute>
+            )
+          },
         ],
       }
     ],
   },
+
   {
     path: '*',
     element: <Navigate to="/login" replace />,

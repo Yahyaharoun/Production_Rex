@@ -10,20 +10,102 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      manifest: false, // We're using the existing manifest.json in public/
+
+      // ── Manifest ──────────────────────────────────────────────────────────────
+      manifest: {
+        name: 'Production Rex',
+        short_name: 'Rex',
+        description: 'Application de gestion des transports',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#065f46',
+        theme_color: '#0ea57a',
+        orientation: 'portrait-primary',
+        lang: 'fr',
+        icons: [
+          {
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/favicon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any'
+          }
+        ],
+        categories: ['business', 'productivity'],
+        shortcuts: [
+          {
+            name: 'Production',
+            short_name: 'Saisie',
+            description: 'Saisir une production',
+            url: '/app/production',
+            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
+          },
+          {
+            name: 'Tableau de bord',
+            short_name: 'Dashboard',
+            description: 'Voir le tableau de bord',
+            url: '/app/dashboard',
+            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
+          }
+        ]
+      },
+
+      // ── Workbox (Service Worker) ──────────────────────────────────────────────
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,jpg,jpeg,webp}'],
+        // Active immédiatement le nouveau SW sans attendre
+        skipWaiting: true,
+        clientsClaim: true,
+
+        // Précache tous les assets statiques générés par Vite
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,jpg,jpeg,webp,json}'],
+
+        // SPA fallback : toute navigation renvoie index.html (mode offline)
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/supabase\//],
+
+        // Stratégies de cache au runtime
         runtimeCaching: [
+          // Supabase API → NetworkFirst (30 s timeout, puis cache 24h)
           {
             urlPattern: /^https:\/\/riodeaaqjckfkyvtjyph\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-api-cache',
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 // 24 heures
               },
-              networkTimeoutSeconds: 5
+              networkTimeoutSeconds: 30,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          // Google Fonts
+          {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 365
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
             }
           }
         ]

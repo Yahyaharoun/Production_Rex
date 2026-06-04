@@ -14,7 +14,7 @@ interface Profile {
   id: string;
   email: string;
   name: string;
-  role: 'PDG' | 'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR';
+  role: 'PDG' | 'CHEF_AGENCE' | 'CAISSIERE' | 'CHAUFFEUR' | 'AGENT_RECETTE';
   phone: string;
   cni_number: string;
   agence_id: string | null;
@@ -37,7 +37,7 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE'>('CAISSIERE');
+  const [role, setRole] = useState<'CHEF_AGENCE' | 'CAISSIERE' | 'AGENT_RECETTE'>('CAISSIERE');
   const [phone, setPhone] = useState('');
   const [cni, setCni] = useState('');
   const [agenceId, setAgenceId] = useState<string>('');
@@ -50,6 +50,12 @@ export default function UsersPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      if (!navigator.onLine) {
+        toast.warning('Gestion des utilisateurs indisponible hors ligne');
+        setProfiles([]);
+        return;
+      }
+      
       const [profilesRes, agenciesRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('agencies').select('id, name')
@@ -61,12 +67,11 @@ export default function UsersPage() {
       let fetchedProfiles = profilesRes.data || [];
 
       if (isPDG) {
-        // PDG voit tout sauf les autres PDG
         fetchedProfiles = fetchedProfiles.filter(p => p.role !== 'PDG' || p.id === user?.id);
       } else if (isChef) {
-        // Chef voit uniquement les caissières de SA propre agence
+        // Chef voit les caissières ET agents de recette de SA propre agence
         fetchedProfiles = fetchedProfiles.filter(p =>
-          p.role === 'CAISSIERE' && p.agence_id === chefAgenceId
+          (p.role === 'CAISSIERE' || p.role === 'AGENT_RECETTE') && p.agence_id === chefAgenceId
         );
       }
 
@@ -111,9 +116,8 @@ export default function UsersPage() {
 
     setCreating(true);
     try {
-      // Force role to CAISSIERE for chef
-      const targetRole = isPDG ? role : 'CAISSIERE';
-      // Force agence to chef's own agence if chef
+      // Chef can create CAISSIERE or AGENT_RECETTE for their own agency
+      const targetRole = isPDG ? role : role;
       const targetAgenceId = isPDG ? agenceId : chefAgenceId;
 
       // Use Edge Function (bypasses PostgREST 404 issue with RPCs)
@@ -237,11 +241,14 @@ export default function UsersPage() {
                       className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                       <option value="CHEF_AGENCE">Chef d'Agence</option>
                       <option value="CAISSIERE">Caissière</option>
+                      <option value="AGENT_RECETTE">Agent de Recette</option>
                     </select>
                   ) : (
-                    <div className="flex items-center h-11 px-3 bg-secondary/10 border border-border rounded-xl text-sm text-muted-foreground font-bold">
-                      Caissière (Auto)
-                    </div>
+                    <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
+                      className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                      <option value="CAISSIERE">Caissière</option>
+                      <option value="AGENT_RECETTE">Agent de Recette</option>
+                    </select>
                   )}
                 </div>
                 <div className="space-y-2">

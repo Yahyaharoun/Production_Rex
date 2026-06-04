@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import {
   LayoutDashboard, CarFront, Users, FileText,
-  LogOut, Menu, X, WifiOff, Download
+  LogOut, Menu, X, WifiOff, Download, Share2
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
@@ -64,33 +64,40 @@ const OnlineStatus = () => {
 export const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
   const { user, login, logout } = useAuthStore();
   const navigate = useNavigate();
 
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
   // PWA Install Prompt
   useEffect(() => {
+    const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    setIsStandalone(checkStandalone);
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setIsInstallable(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    window.addEventListener('appinstalled', () => setIsStandalone(true));
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setIsStandalone(true);
+      setDeferredPrompt(null);
+    } else if (isIOS && isSafari) {
+      setShowIOSGuide(true);
+    } else if (isIOS && !isSafari) {
+      setShowIOSGuide(true); // show guide, note Safari required
     }
-    setDeferredPrompt(null);
   };
 
   // Rafraîchir le profil au montage
@@ -110,6 +117,7 @@ export const MainLayout = () => {
             name: data.name || 'Utilisateur',
             role: (data.role?.toUpperCase() || 'CHAUFFEUR') as Role,
             agenceId: data.agence_id || '',
+            lineIds: data.line_ids || (data.agence_id ? [data.agence_id] : []),
             isActive: data.is_active ?? true,
           },
           useAuthStore.getState().token || ''
@@ -128,22 +136,27 @@ export const MainLayout = () => {
   const closeSidebar = () => setSidebarOpen(false);
 
   const navigation = [
-    { name: 'Tableau de bord', href: '/app/dashboard', icon: LayoutDashboard },
-    { name: 'Production',      href: '/app/production', icon: FileText },
-    ...(user?.role !== 'CAISSIERE'
-      ? [{ name: 'Véhicules', href: '/app/vehicles', icon: CarFront }]
-      : []
-    ),
-    { name: 'Chauffeurs', href: '/app/drivers', icon: Users },
-    ...(user?.role !== 'CAISSIERE'
-      ? [{ name: 'Rapports', href: '/app/reports', icon: FileText }]
-      : []
-    ),
-    ...(user?.role === 'PDG' || user?.role === 'CHEF_AGENCE'
-      ? [{ name: 'Utilisateurs', href: '/app/users', icon: Users }]
-      : []
-    ),
-  ];
+    { name: 'Tableau de bord', href: '/app/dashboard', icon: LayoutDashboard,
+      show: true },
+    { name: 'Production', href: '/app/production', icon: FileText,
+      show: true },
+    { name: 'Carburant', href: '/app/fuel-expenses', icon: FileText,
+      show: user?.role !== 'AGENT_RECETTE' },
+    { name: 'Autres Dépenses', href: '/app/other-expenses', icon: FileText,
+      show: user?.role !== 'AGENT_RECETTE' },
+    { name: 'Lavage', href: '/app/washing-control', icon: CarFront,
+      show: user?.role !== 'AGENT_RECETTE' },
+    { name: 'Véhicules', href: '/app/vehicles', icon: CarFront,
+      show: user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' },
+    { name: 'Chauffeurs', href: '/app/drivers', icon: Users,
+      show: user?.role !== 'AGENT_RECETTE' },
+    { name: 'Rapports', href: '/app/reports', icon: FileText,
+      show: user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' },
+    { name: 'Utilisateurs', href: '/app/users', icon: Users,
+      show: user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' },
+    { name: 'Journal', href: '/app/activity-log', icon: FileText,
+      show: user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' },
+  ].filter(item => item.show);
 
   // ── Contenu de la sidebar ──────────────────────────────────────────────
   const SidebarContent = () => (
@@ -212,7 +225,7 @@ export const MainLayout = () => {
           Se déconnecter
         </Button>
 
-        {isInstallable && (
+        {!isStandalone && (
           <Button
             variant="default"
             size="sm"
@@ -220,7 +233,7 @@ export const MainLayout = () => {
             className="w-full justify-start mt-2 bg-primary text-white hover:bg-primary/90"
           >
             <Download className="h-4 w-4 mr-2" />
-            Installer l'application
+            {isIOS ? "Ajouter à l'écran" : "Installer l'application"}
           </Button>
         )}
       </div>
@@ -246,9 +259,10 @@ export const MainLayout = () => {
       {/* ── Sidebar mobile (drawer) ── */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden',
+          'fixed inset-y-0 left-0 z-50 w-72 flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden bg-background',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <SidebarContent />
       </div>
@@ -256,7 +270,10 @@ export const MainLayout = () => {
       {/* ── Contenu principal ── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar mobile */}
-        <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:hidden shadow-sm">
+        <header 
+          className="flex items-center gap-3 border-b border-border bg-card px-4 pb-3 lg:hidden shadow-sm"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
+        >
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors"
@@ -278,7 +295,76 @@ export const MainLayout = () => {
           </div>
         </main>
       </div>
+
+      {/* ── iOS Installation Guide Modal ─────────────────────────────────── */}
+      {showIOSGuide && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div
+            className="w-full max-w-md rounded-t-3xl text-white pb-8 shadow-2xl"
+            style={{ background: 'linear-gradient(135deg,#065f46,#0ea57a)' }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1.5 bg-white/30 rounded-full" />
+            </div>
+
+            <div className="px-5 pb-2">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-black text-lg">Installer Production Rex</p>
+                <button
+                  onClick={() => setShowIOSGuide(false)}
+                  className="p-2 hover:bg-white/20 rounded-full transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {!isSafari && (
+                <div className="bg-yellow-400/20 border border-yellow-300/40 rounded-xl p-3 mb-4 text-sm">
+                  ⚠️ <strong>Ouvrez d'abord ce lien dans Safari</strong> — l'installation n'est pas possible depuis Chrome ou Firefox sur iOS.
+                </div>
+              )}
+
+              {/* Step 1 */}
+              <div className="flex items-start gap-3 bg-white/10 rounded-2xl p-3 mb-3">
+                <div className="bg-white text-green-800 rounded-full w-8 h-8 flex items-center justify-center font-black text-sm flex-shrink-0">
+                  1
+                </div>
+                <div className="text-sm leading-relaxed">
+                  Dans <strong>Safari</strong> (en haut ou en bas), appuyez sur l'icône{' '}
+                  <span className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-lg font-semibold">
+                    <Share2 className="h-4 w-4 inline" />
+                    Partager
+                  </span>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="flex items-start gap-3 bg-white/10 rounded-2xl p-3 mb-4">
+                <div className="bg-white text-green-800 rounded-full w-8 h-8 flex items-center justify-center font-black text-sm flex-shrink-0">
+                  2
+                </div>
+                <div className="text-sm leading-relaxed">
+                  Faites défiler vers le bas et appuyez sur{' '}
+                  <span className="font-bold bg-white/20 px-2 py-0.5 rounded-lg">
+                    « Sur l'écran d'accueil »
+                  </span>{' '}
+                  puis <strong>Ajouter</strong>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowIOSGuide(false)}
+                className="w-full bg-white text-green-800 rounded-full py-3 font-black text-sm hover:bg-white/90 transition"
+              >
+                J'ai compris
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 

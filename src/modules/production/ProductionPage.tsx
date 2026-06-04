@@ -14,6 +14,9 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Skeleton } from '../../components/ui/skeleton';
+import { db } from '../../lib/dexie';
+import { stripSensitiveFields } from '../../lib/utils';
+import { TicketPrint } from './TicketPrint';
 
 //  Tarifs dynamiques par agence 
 const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
@@ -41,9 +44,6 @@ const productionSchema = z.object({
     message: 'Sélectionnez le type de production',
   }),
   fuel: z.coerce.number().min(0).default(0),
-  toll: z.coerce.number().min(0).default(0),
-  washing: z.coerce.number().min(0).default(0),
-  others: z.coerce.number().min(0).default(0),
   ligne: z.string().min(1, 'La ligne est requise'),
 });
 
@@ -63,9 +63,6 @@ interface ProductionRecord {
   passengers_at_departure: number;
   revenue: number;
   expense_fuel: number;
-  expense_toll: number;
-  expense_washing: number;
-  expense_others: number;
   net_to_deposit: number;
   date: string;
   status: string;
@@ -82,11 +79,15 @@ export default function ProductionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [history, setHistory] = useState<ProductionRecord[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [agenciesError, setAgenciesError] = useState<string | null>(null);
   const [agenciesLoading, setAgenciesLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [validatingAll, setValidatingAll] = useState(false);
+  const [ticketData, setTicketData] = useState<any>(null);
 
   const roleStr = String(user?.role || '').toUpperCase().trim();
   const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
@@ -102,9 +103,6 @@ export default function ProductionPage() {
     defaultValues: {
       totalSeats: 30,
       fuel: 0,
-      toll: 0,
-      washing: 0,
-      others: 0,
       ligne: '',
       productionType: 'CLASSIQUE',
     },
@@ -114,16 +112,13 @@ export default function ProductionPage() {
   const passengersAtDeparture = useWatch({ control, name: 'passengersAtDeparture', defaultValue: 0 }) || 0;
   const productionType = useWatch({ control, name: 'productionType', defaultValue: 'CLASSIQUE' });
   const fuel    = useWatch({ control, name: 'fuel',    defaultValue: 0 }) || 0;
-  const toll    = useWatch({ control, name: 'toll',    defaultValue: 0 }) || 0;
-  const washing = useWatch({ control, name: 'washing', defaultValue: 0 }) || 0;
-  const others  = useWatch({ control, name: 'others',  defaultValue: 0 }) || 0;
 
   const ligne = useWatch({ control, name: 'ligne', defaultValue: '' }) || '';
 
   //  Calculs automatiques 
   const pricePerTicket = getPrice(ligne, productionType as 'CLASSIQUE' | 'VIP');
   const revenue = Number(passengersAtDeparture) * pricePerTicket;
-  const totalExpenses = Number(fuel) + Number(toll) + Number(washing) + Number(others);
+  const totalExpenses = Number(fuel);
   const netToDeposit = revenue - totalExpenses;
 
   //  Chargement des agences 
@@ -131,28 +126,37 @@ export default function ProductionPage() {
     setAgenciesLoading(true);
     setAgenciesError(null);
     try {
-      const { data, error } = await supabase
-        .from('agencies')
-        .select('id, name, city')
-        .order('name');
+      let dataToUse: Agency[] = [];
+      if (navigator.onLine) {
+        const { data, error } = await supabase
+          .from('agencies')
+          .select('id, name, city')
+          .order('name');
+        if (error) throw error;
+        dataToUse = data || [];
+        if (dataToUse.length > 0) {
+          await db.agencies.clear();
+          await db.agencies.bulkPut(dataToUse);
+        }
+      } else {
+        dataToUse = await db.agencies.toArray();
+      }
 
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
+      if (!dataToUse || dataToUse.length === 0) {
         setAgenciesError('Aucune agence disponible. Contactez l\'administrateur.');
         setAgencies([]);
         return;
       }
 
-      setAgencies(data);
+      setAgencies(dataToUse);
 
       // Pré-sélectionner l'agence de l'utilisateur
       if (userAgenceId) {
-        const myAgence = data.find((a: Agency) => a.id === userAgenceId);
+        const myAgence = dataToUse.find((a: Agency) => a.id === userAgenceId);
         if (myAgence) setValue('ligne', myAgence.name, { shouldValidate: true });
       }
     } catch (err: unknown) {
-      const msg = (err as any)?.message || 'Connexion  la base de donnes impossible';
+      const msg = (err as any)?.message || 'Connexion à la base de données impossible';
       setAgenciesError(`Erreur de chargement des agences : ${msg}`);
       setAgencies([]);
       console.error('[ProductionPage] fetchAgencies error:', err);
@@ -165,21 +169,33 @@ export default function ProductionPage() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
-      let query = supabase
-        .from('productions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      let dataToUse: any[] = [];
+      if (navigator.onLine) {
+        let query = supabase
+          .from('productions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-      // Filtrer par agence pour les non-admins
-      if (!isAdmin && userAgenceId) {
-        query = query.eq('agence_id', userAgenceId);
+        // Filtrer par agence pour les non-admins
+        if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+          query = query.in('agence_id', user.lineIds);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        dataToUse = data || [];
+      } else {
+        const allProds = await db.productions.toArray();
+        if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+          dataToUse = allProds.filter(p => user.lineIds.includes(p.agence_id || p.agenceId));
+        } else {
+          dataToUse = allProds;
+        }
+        dataToUse.sort((a, b) => b.created_at?.localeCompare(a.created_at));
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
       
-      const dataWithType = (data || []).map((r: any) => ({
+      const dataWithType = dataToUse.map((r: any) => ({
         ...r,
         production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
       }));
@@ -191,56 +207,198 @@ export default function ProductionPage() {
     }
   };
 
+  const fetchVehicles = async () => {
+    try {
+      if (navigator.onLine) {
+        const { data } = await supabase.from('vehicles').select('*');
+        if (data) {
+           setVehicles(data);
+           // Update local Dexie for offline
+           await db.vehicles.clear();
+           await db.vehicles.bulkPut(data.map(v => ({...v, clientId: v.id})));
+        }
+      } else {
+        const localData = await db.vehicles.toArray();
+        setVehicles(localData);
+      }
+    } catch (err) {
+      console.error('Erreur chargement véhicules:', err);
+    }
+  };
+
   useEffect(() => {
     fetchAgencies();
     fetchHistory();
+    fetchVehicles();
   }, []);
+
+  const watchedImmat = useWatch({ control, name: 'immatriculation' });
+  useEffect(() => {
+    if (watchedImmat && vehicles.length > 0) {
+      const normalize = (s: string) => s.replace(/[\s-]/g, '').toUpperCase();
+      const v = vehicles.find(v => normalize(v.immatriculation) === normalize(watchedImmat));
+      if (v) {
+        if (v.total_seats) setValue('totalSeats', v.total_seats);
+        if (v.default_driver_name) setValue('driverName', v.default_driver_name);
+        if (v.production_type) setValue('productionType', v.production_type);
+      }
+    }
+  }, [watchedImmat, vehicles, setValue]);
 
   //  Soumission du formulaire 
   const onSubmit = async (data: ProductionFormValues) => {
     setIsSubmitting(true);
     setSaved(false);
     try {
+      // Validate that the vehicle is recognized
+      const normalize = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
+      const searchImmat = normalize(data.immatriculation);
+
+      const matchedVehicle = vehicles.find(v => normalize(v.immatriculation) === searchImmat);
+      if (!matchedVehicle) {
+        toast.error("Immatriculation invalide", { 
+          description: "Cette immatriculation n'est pas reconnue dans la base de données. Veuillez utiliser une immatriculation existante." 
+        });
+        return;
+      }
+
       const selectedAgence = agencies.find((a) => a.name === data.ligne);
       const agenceId = selectedAgence?.id || userAgenceId || null;
       const calculatedRevenue = Number(data.passengersAtDeparture) * pricePerTicket;
-      const calculatedNet = calculatedRevenue - (Number(data.fuel) + Number(data.toll) + Number(data.washing) + Number(data.others));
+      const calculatedNet = calculatedRevenue - Number(data.fuel);
 
-      const { error } = await supabase.from('productions').insert({
-        immatriculation: data.productionType === 'VIP' ? `${data.immatriculation.toUpperCase()} (VIP)` : data.immatriculation.toUpperCase(),
+      const clientId = crypto.randomUUID();
+
+      // Payload complet (utiliser l'immatriculation normalisée de la BD)
+      const baseImmat = matchedVehicle.immatriculation;
+      const payload = {
+        immatriculation: data.productionType === 'VIP' ? `${baseImmat} (VIP)` : baseImmat,
         driver_name: data.driverName,
         total_seats: data.totalSeats,
         passengers_at_departure: data.passengersAtDeparture,
         revenue: calculatedRevenue,
         expense_fuel: data.fuel,
-        expense_toll: data.toll,
-        expense_washing: data.washing,
-        expense_others: data.others,
+        expense_toll: 0,
+        expense_washing: 0,
+        expense_others: 0,
+        net_to_deposit: calculatedNet,
         status: 'DRAFT',
         created_by: user?.id,
         date: new Date().toISOString().split('T')[0],
         caissiere_name: user?.name || '',
         ligne: data.ligne,
         agence_id: agenceId,
-      });
+        production_type: data.productionType,
+        price_per_ticket: pricePerTicket,
+        client_id: clientId,
+      };
 
-      if (error) throw error;
+      if (navigator.onLine) {
+        // En ligne : envoi direct à Supabase
+        const sanitized = stripSensitiveFields(payload);
+        // Remove client_id since it's only for local offline tracking
+        delete (sanitized as any).client_id;
+        
+        const { error } = await supabase.from('productions').insert(sanitized);
+        if (error) throw error;
+
+        // Aussi sauvegarder localement pour que ce soit visible hors-ligne
+        await db.productions.put({
+          clientId,
+          immatriculation: payload.immatriculation,
+          driver_name: payload.driver_name,
+          total_seats: payload.total_seats,
+          passengers_at_departure: payload.passengers_at_departure,
+          revenue: payload.revenue,
+          expense_fuel: payload.expense_fuel,
+          expense_toll: 0,
+          expense_washing: 0,
+          expense_others: 0,
+          net_to_deposit: calculatedNet,
+          production_type: data.productionType,
+          price_per_ticket: pricePerTicket,
+          status: 'DRAFT',
+          date: payload.date,
+          caissiere_name: payload.caissiere_name,
+          ligne: data.ligne,
+          agence_id: agenceId || '',
+          created_at: new Date().toISOString(),
+          synced: true,
+        });
+
+        toast.success('Production enregistrée !', {
+          description: `${data.productionType} · ${data.passengersAtDeparture} pass. × ${pricePerTicket.toLocaleString()} FCFA = Net: ${calculatedNet.toLocaleString()} FCFA`,
+        });
+      } else {
+        // Hors-ligne : sauvegarde dans IndexedDB + file d'attente de sync
+        const localEntry = {
+          clientId,
+          immatriculation: payload.immatriculation,
+          driver_name: payload.driver_name,
+          total_seats: payload.total_seats,
+          passengers_at_departure: payload.passengers_at_departure,
+          revenue: payload.revenue,
+          expense_fuel: payload.expense_fuel,
+          expense_toll: 0,
+          expense_washing: 0,
+          expense_others: 0,
+          net_to_deposit: calculatedNet,
+          production_type: data.productionType,
+          price_per_ticket: pricePerTicket,
+          status: 'DRAFT',
+          date: payload.date,
+          caissiere_name: payload.caissiere_name,
+          ligne: data.ligne,
+          agence_id: agenceId || '',
+          created_at: new Date().toISOString(),
+          synced: false,
+        };
+
+        await db.productions.put(localEntry);
+
+        // Ajouter dans la file de sync pour envoi dès que connexion revient
+        await db.syncQueue.add({
+          clientId,
+          table: 'productions',
+          action: 'INSERT',
+          payload: {
+            ...payload,
+            net_to_deposit: calculatedNet,
+          },
+          status: 'PENDING',
+          retries: 0,
+          createdAt: new Date().toISOString(),
+        });
+
+        toast.success('Production sauvegardée localement', {
+          description: `⚡ Hors-ligne. Sera synchronisée automatiquement dès que vous aurez internet.`,
+          duration: 6000,
+        });
+      }
 
       setSaved(true);
-      toast.success('Production enregistrée avec succès !', {
-        description: `${data.productionType} - ${data.passengersAtDeparture} pass. x ${pricePerTicket.toLocaleString()} FCFA = ${calculatedRevenue.toLocaleString()} FCFA - Net: ${calculatedNet.toLocaleString()} FCFA`,
-      });
-
-      fetchHistory();
+      await fetchHistory();
       setTimeout(() => setSaved(false), 3000);
 
-      // Réinitialiser partiellement (conserver la ligne)
+      // Afficher le ticket thermique
+      setTicketData({
+        companyName: 'PRODUCTION REX',
+        ticketNumber: clientId,
+        date: new Date().toLocaleDateString('fr-FR'),
+        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        vehicleImmat: payload.immatriculation,
+        driverName: data.driverName,
+        passengers: data.passengersAtDeparture,
+        revenue: calculatedRevenue,
+        agentName: user?.name || '',
+        ligne: data.ligne,
+        productionType: data.productionType,
+      });
+
+      // Réinitialiser partiellement
       reset({
         totalSeats: 30,
         fuel: 0,
-        toll: 0,
-        washing: 0,
-        others: 0,
         ligne: data.ligne,
         productionType: 'CLASSIQUE',
         immatriculation: '',
@@ -269,18 +427,60 @@ export default function ProductionPage() {
 
   const handleValidate = async (id: string) => {
     if (!canValidate) return;
-    if (!confirm('Voulez-vous valider cette production ? Elle apparatra ensuite dans les rapports.')) return;
+    if (!confirm('Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.')) return;
     const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
     if (!error) {
-      toast.success('Production valide !');
+      toast.success('Production validée !');
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
       fetchHistory();
     } else {
       toast.error('Erreur de validation', { description: error.message });
     }
   };
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const unvalidated = history.filter(r => r.status !== 'VALIDATED' && r.id);
+    if (selectedIds.size === unvalidated.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(unvalidated.map(r => r.id)));
+    }
+  };
+
+  const handleValidateSelected = async () => {
+    if (!canValidate || selectedIds.size === 0) return;
+    if (!confirm(`Voulez-vous valider les ${selectedIds.size} production(s) sélectionnée(s) ? Elles apparaîtront dans les rapports.`)) return;
+    setValidatingAll(true);
+    let ok = 0; let fail = 0;
+    for (const id of Array.from(selectedIds)) {
+      const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
+      if (error) fail++; else ok++;
+    }
+    setValidatingAll(false);
+    setSelectedIds(new Set());
+    if (ok > 0) toast.success(`${ok} production(s) validée(s) !`);
+    if (fail > 0) toast.error(`${fail} production(s) en erreur.`);
+    fetchHistory();
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-8">
+      {/* Ticket thermique */}
+      {ticketData && (
+        <TicketPrint
+          data={ticketData}
+          onClose={() => setTicketData(null)}
+        />
+      )}
+
       {/*  En-tête  */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -386,8 +586,14 @@ export default function ProductionPage() {
                   id="immatriculation"
                   placeholder="ex: LT-1234-A"
                   className="uppercase font-mono"
+                  list="vehicles-list"
                   {...register('immatriculation')}
                 />
+                <datalist id="vehicles-list">
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.immatriculation} />
+                  ))}
+                </datalist>
                 {errors.immatriculation && (
                   <p className="text-xs text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" /> {errors.immatriculation.message}
@@ -542,12 +748,9 @@ export default function ProductionPage() {
               <Label className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
                 Dépenses du trajet (FCFA)
               </Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { name: 'fuel'    as const, label: 'Carburant' },
-                  { name: 'toll'    as const, label: 'Péage' },
-                  { name: 'washing' as const, label: 'Lavage' },
-                  { name: 'others'  as const, label: 'Autres' },
+                  { name: 'fuel' as const, label: 'Carburant' },
                 ].map(({ name, label }) => (
                   <div key={name} className="space-y-1.5">
                     <Label htmlFor={name} className="text-xs font-medium">{label}</Label>
@@ -605,13 +808,31 @@ export default function ProductionPage() {
       {showHistory && (
         <Card className="shadow-md border-0">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <History className="h-5 w-5" />
                 Historique des Productions
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">{history.length} entrée(s)</span>
+                {canValidate && history.some(r => r.status !== 'VALIDATED') && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                      {selectedIds.size === history.filter(r => r.status !== 'VALIDATED').length && selectedIds.size > 0 ? 'Tout décocher' : 'Tout cocher'}
+                    </Button>
+                    {selectedIds.size > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={handleValidateSelected}
+                        disabled={validatingAll}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        {validatingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+                        Valider {selectedIds.size} sélection(s)
+                      </Button>
+                    )}
+                  </>
+                )}
                 <Button variant="ghost" size="sm" onClick={fetchHistory} disabled={loadingHistory}>
                   <RefreshCw className={`h-4 w-4 ${loadingHistory ? 'animate-spin' : ''}`} />
                 </Button>
@@ -632,12 +853,29 @@ export default function ProductionPage() {
                 <p className="text-sm mt-1 opacity-70">Les productions apparaîtront ici</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
                 {history.map((rec) => (
                   <div
                     key={rec.id}
-                    className="flex items-center justify-between p-3 rounded-xl border bg-muted/30 hover:bg-muted/50 transition-colors gap-3"
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-colors gap-3 ${
+                      selectedIds.has(rec.id)
+                        ? 'bg-emerald-50 border-emerald-300'
+                        : 'bg-muted/30 hover:bg-muted/50'
+                    }`}
                   >
+                    {/* Checkbox for selection */}
+                    {canValidate && rec.status !== 'VALIDATED' && (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 cursor-pointer flex-shrink-0"
+                        checked={selectedIds.has(rec.id)}
+                        onChange={() => handleToggleSelect(rec.id)}
+                      />
+                    )}
+                    {canValidate && rec.status === 'VALIDATED' && (
+                      <div className="h-4 w-4 flex-shrink-0" />
+                    )}
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm font-mono">{rec.immatriculation}</span>
@@ -655,6 +893,11 @@ export default function ProductionPage() {
                         }`}>
                           {rec.status === 'VALIDATED' ? '✔ Validé' : '⏳ Brouillon'}
                         </span>
+                        {rec.synced === false && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">
+                            ⚡ En attente sync
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate">
                         {rec.driver_name} · {rec.ligne || 'N/A'} ·{' '}
@@ -670,7 +913,7 @@ export default function ProductionPage() {
                       <div className="font-black text-sm text-emerald-600 dark:text-emerald-400">
                         {(rec.net_to_deposit || 0).toLocaleString()} FCFA
                       </div>
-                      <div className="text-xs text-muted-foreground">net verséé</div>
+                      <div className="text-xs text-muted-foreground">net versé</div>
                     </div>
 
                     {canValidate && (

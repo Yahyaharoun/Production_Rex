@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
+import { Skeleton } from '../../components/ui/skeleton';
+import * as XLSX from 'xlsx';
 
 //  Types 
 interface ProductionRecord {
@@ -59,6 +60,9 @@ export default function ReportsPage() {
 
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
+  const [fuelRecords, setFuelRecords] = useState<any[]>([]);
+  const [washRecords, setWashRecords] = useState<any[]>([]);
+  const [otherRecords, setOtherRecords] = useState<any[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [period, setPeriod] = useState<ReportPeriod>('DAILY');
   const [dateStart, setDateStart] = useState('');
@@ -87,42 +91,62 @@ export default function ReportsPage() {
         .eq('status', 'VALIDATED')
         .order('date', { ascending: false });
 
-      if (!isAdmin && user?.agenceId) {
-        query = query.eq('agence_id', user.agenceId as string);
+      let qFuel = supabase.from('fuel_expenses').select('*');
+      let qWash = supabase.from('washes').select('*');
+      let qOther = supabase.from('other_expenses').select('*');
+
+      if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+        query = query.in('agence_id', user.lineIds);
+        qFuel = qFuel.in('agence_id', user.lineIds);
+        qWash = qWash.in('agence_id', user.lineIds);
+        qOther = qOther.in('agence_id', user.lineIds);
       }
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
 
-      if (period === 'DAILY') {
-        query = query.gte('date', today).lte('date', today);
-      } else if (period === 'WEEKLY') {
-        const d = new Date();
-        d.setDate(d.getDate() - 7);
-        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
-      } else if (period === 'MONTHLY') {
-        const d = new Date();
-        d.setMonth(d.getMonth() - 1);
-        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
-      } else if (period === 'YEARLY') {
-        const d = new Date();
-        d.setFullYear(d.getFullYear() - 1);
-        query = query.gte('date', d.toISOString().split('T')[0]).lte('date', today);
-      } else if (period === 'CUSTOM') {
-        if (dateStart) query = query.gte('date', dateStart);
-        if (dateEnd) query = query.lte('date', dateEnd);
-      }
+      const applyDateFilter = (q: any) => {
+        if (period === 'DAILY') {
+          return q.gte('date', today).lte('date', today);
+        } else if (period === 'WEEKLY') {
+          const d = new Date(); d.setDate(d.getDate() - 7);
+          return q.gte('date', d.toISOString().split('T')[0]).lte('date', today);
+        } else if (period === 'MONTHLY') {
+          const d = new Date(); d.setMonth(d.getMonth() - 1);
+          return q.gte('date', d.toISOString().split('T')[0]).lte('date', today);
+        } else if (period === 'YEARLY') {
+          const d = new Date(); d.setFullYear(d.getFullYear() - 1);
+          return q.gte('date', d.toISOString().split('T')[0]).lte('date', today);
+        } else if (period === 'CUSTOM') {
+          let req = q;
+          if (dateStart) req = req.gte('date', dateStart);
+          if (dateEnd) req = req.lte('date', dateEnd);
+          return req;
+        }
+        return q;
+      };
 
-      const { data, error } = await query;
-      if (error) throw error;
+      query = applyDateFilter(query);
+      qFuel = applyDateFilter(qFuel);
+      qWash = applyDateFilter(qWash);
+      qOther = applyDateFilter(qOther);
+
+      const [resProd, resFuel, resWash, resOther] = await Promise.all([
+        query, qFuel, qWash, qOther
+      ]);
+
+      if (resProd.error) throw resProd.error;
       
       // Injecter le type de production déduit de l'immatriculation
-      const dataWithType = (data || []).map((r: any) => ({
+      const dataWithType = (resProd.data || []).map((r: any) => ({
         ...r,
         production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
       }));
       
       setRecords(dataWithType);
+      setFuelRecords(resFuel.data || []);
+      setWashRecords(resWash.data || []);
+      setOtherRecords((resOther.data || []).filter((o: any) => o.status !== 'REJECTED'));
     } catch (err: unknown) {
       const msg = err instanceof Error ? (err as any)?.message : 'Erreur inconnue';
       toast.error('Erreur de chargement', { description: msg });
@@ -162,195 +186,312 @@ export default function ReportsPage() {
     return matchSearch && matchAgence;
   });
 
-  //  Statistiques globales 
-  const classiques = filteredRecords.filter(
-    (r) => !r.production_type || r.production_type === 'CLASSIQUE'
-  );
-  const vips = filteredRecords.filter((r) => r.production_type === 'VIP');
-
-  const calcStats = (recs: ProductionRecord[]) => ({
-    count: recs.length,
-    revenue: recs.reduce((s, r) => s + Number(r.revenue || 0), 0),
-    expenses: recs.reduce(
-      (s, r) =>
-        s +
-        Number(r.expense_fuel || 0) +
-        Number(r.expense_toll || 0) +
-        Number(r.expense_washing || 0) +
-        Number(r.expense_others || 0),
-      0
+  const statsTotal = {
+    count: filteredRecords.length,
+    revenue: filteredRecords.reduce((s, r) => s + Number(r.revenue || 0), 0),
+    expenses: filteredRecords.reduce(
+      (s, r) => s + Number(r.expense_fuel || 0), 0
     ),
-    net: recs.reduce((s, r) => {
-      const net =
-        Number(r.net_to_deposit) ||
-        Number(r.revenue) -
-          (Number(r.expense_fuel) +
-            Number(r.expense_toll) +
-            Number(r.expense_washing) +
-            Number(r.expense_others));
-      return s + net;
-    }, 0),
-    passengers: recs.reduce((s, r) => s + Number(r.passengers_at_departure || 0), 0),
-  });
-
-  const statsClassique = calcStats(classiques);
-  const statsVIP = calcStats(vips);
-  const statsTotal = calcStats(filteredRecords);
+    net: filteredRecords.reduce((s, r) => s + Number(r.net_to_deposit || 0), 0),
+  };
 
   // --- Stats par agence ---
   const statsByAgence = (() => {
-    const map: Record<string, { name: string; classique: number; vip: number; net: number; count: number }> = {};
+    const map: Record<string, { 
+      name: string; 
+      classiqueCount: number; 
+      vipCount: number; 
+      totalCount: number;
+      revenue: number;
+      fuelExpense: number;
+      washExpense: number;
+      otherExpense: number;
+      totalExpense: number;
+      net: number;
+    }> = {};
+
+    const getOrCreate = (key: string) => {
+      if (!map[key]) {
+        map[key] = { 
+          name: key, classiqueCount: 0, vipCount: 0, totalCount: 0, 
+          revenue: 0, fuelExpense: 0, washExpense: 0, otherExpense: 0, totalExpense: 0, net: 0 
+        };
+      }
+      return map[key];
+    };
+
+    // 1. Productions
     filteredRecords.forEach((r) => {
       const key = r.ligne || r.agence_id || 'Inconnue';
-      if (!map[key]) map[key] = { name: key, classique: 0, vip: 0, net: 0, count: 0 };
-      const recNet =
-        Number(r.net_to_deposit) ||
-        Number(r.revenue) -
-          (Number(r.expense_fuel) + Number(r.expense_toll) + Number(r.expense_washing) + Number(r.expense_others));
-      map[key].net += recNet;
-      map[key].count += 1;
+      const stats = getOrCreate(key);
+      
+      stats.totalCount += 1;
       if (!r.production_type || r.production_type === 'CLASSIQUE') {
-        map[key].classique += Number(r.revenue || 0);
+        stats.classiqueCount += 1;
       } else {
-        map[key].vip += Number(r.revenue || 0);
+        stats.vipCount += 1;
       }
+
+      stats.revenue += Number(r.revenue || 0);
+      stats.fuelExpense += Number(r.expense_fuel || 0);
     });
+
+    // 2. Fuel (external)
+    fuelRecords.forEach(r => {
+      const key = r.ligne || r.agence_id || 'Inconnue';
+      const stats = getOrCreate(key);
+      stats.fuelExpense += Number(r.amount || 0);
+    });
+
+    // 3. Washes (external)
+    washRecords.forEach(r => {
+      const key = r.ligne || r.agence_id || 'Inconnue';
+      const stats = getOrCreate(key);
+      stats.washExpense += Number(r.amount || 0);
+    });
+
+    // 4. Other Expenses (external)
+    otherRecords.forEach(r => {
+      const key = r.ligne || r.agence_id || 'Inconnue';
+      const stats = getOrCreate(key);
+      stats.otherExpense += Number(r.amount || 0);
+    });
+
+    // 5. Final calculation
+    Object.values(map).forEach(stats => {
+      stats.totalExpense = stats.fuelExpense + stats.washExpense + stats.otherExpense;
+      stats.net = stats.revenue - stats.totalExpense;
+    });
+
     return Object.values(map).sort((a, b) => b.net - a.net);
   })();
 
-  //  Export PDF (sans jspdf-autotable  utilise jsPDF natif) 
+  const globalFuel = statsByAgence.reduce((s, a) => s + a.fuelExpense, 0);
+  const globalWash = statsByAgence.reduce((s, a) => s + a.washExpense, 0);
+  const globalOther = statsByAgence.reduce((s, a) => s + a.otherExpense, 0);
+  const globalExpense = statsByAgence.reduce((s, a) => s + a.totalExpense, 0);
+  const globalRevenue = statsByAgence.reduce((s, a) => s + a.revenue, 0);
+  const globalNet = statsByAgence.reduce((s, a) => s + a.net, 0);
+
+  //  Export PDF simplifié (A4, une page) 
   const exportPDF = async () => {
     setLoading(true);
     try {
       const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({ orientation: 'landscape' });
+      const doc = new jsPDF({ orientation: 'portrait', format: 'a4' });
 
       const periodLabels: Record<ReportPeriod, string> = {
-        DAILY: "Aujourd'hui",
+        DAILY: "Aujourd'hui – " + new Date().toLocaleDateString('fr-FR'),
         WEEKLY: '7 derniers jours',
-        MONTHLY: '30 derniers jours',
-        YEARLY: 'Cette annee',
-        CUSTOM: `${dateStart} - ${dateEnd}`,
+        MONTHLY: '30 jours',
+        YEARLY: 'Cette année',
+        CUSTOM: `${dateStart} – ${dateEnd}`,
       };
 
-      // En-tête
-      doc.setFillColor(6, 95, 70);
-      doc.rect(0, 0, 297, 28, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PRODUCTION REX - RAPPORT', 14, 12);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Periode: ${periodLabels[period]}  |  Genere le: ${new Date().toLocaleDateString('fr-FR')}`, 14, 21);
-      doc.setTextColor(0, 0, 0);
-
-      let y = 35;
-
-      // Résumé global
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Resume Global', 14, y);
-      y += 8;
-
-      // Table manuelle
-      const colWidths = [50, 40, 55, 55, 55];
-      const headers = ['Type', 'Productions', 'Recettes', 'Depenses', 'Net a verser'];
-      const rows = [
-        ['CLASSIQUE', String(statsClassique.count), fmt(statsClassique.revenue), fmt(statsClassique.expenses), fmt(statsClassique.net)],
-        ['VIP', String(statsVIP.count), fmt(statsVIP.revenue), fmt(statsVIP.expenses), fmt(statsVIP.net)],
-        ['TOTAL', String(statsTotal.count), fmt(statsTotal.revenue), fmt(statsTotal.expenses), fmt(statsTotal.net)],
-      ];
-
-      // Draw table header
-      doc.setFillColor(6, 95, 70);
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      let x = 14;
-      headers.forEach((h, i) => {
-        doc.rect(x, y, colWidths[i], 8, 'F');
-        doc.text(h, x + 2, y + 5.5);
-        x += colWidths[i];
+      const exportDate = new Date().toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
       });
-      y += 8;
 
-      // Draw table rows
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'normal');
-      rows.forEach((row, ri) => {
-        if (ri % 2 === 0) {
-          doc.setFillColor(240, 255, 248);
-          x = 14;
-          row.forEach((_cell, i) => {
-            doc.rect(x, y, colWidths[i], 7, 'F');
-            x += colWidths[i];
-          });
-        }
-        x = 14;
-        row.forEach((cell, i) => {
-          doc.rect(x, y, colWidths[i], 7);
-          doc.text(cell, x + 2, y + 4.5);
-          x += colWidths[i];
-        });
-        y += 7;
-      });
-      y += 10;
-
-      // Stats par agence
-      if (statsByAgence.length > 0) {
-        doc.setFontSize(13);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Statistiques par Agence', 14, y);
-        y += 8;
-
-        const agColW = [60, 35, 55, 55, 55];
-        const agHeaders = ['Agence', 'Productions', 'Classique', 'VIP', 'Net Total'];
-        doc.setFillColor(14, 165, 122);
+      const drawHeader = (title: string) => {
+        doc.setFillColor(6, 95, 70);
+        doc.rect(0, 0, 297, 32, 'F');
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9);
+        doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
-        x = 14;
-        agHeaders.forEach((h, i) => {
-          doc.rect(x, y, agColW[i], 8, 'F');
+        doc.text('PRODUCTION REX', 14, 14);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(title, 14, 22);
+        doc.setFontSize(9);
+        doc.text(
+          `Exporté le : ${exportDate}  |  Période : ${periodLabels[period]}`,
+          14,
+          29,
+        );
+        doc.setTextColor(0, 0, 0);
+      };
+
+      const drawTable = (
+        headers: string[],
+        colWidths: number[],
+        rows: string[][],
+        startY: number,
+      ): number => {
+        let y = startY;
+        let x = 14;
+
+        doc.setFillColor(6, 95, 70);
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'bold');
+        headers.forEach((h, i) => {
+          doc.rect(x, y, colWidths[i], 8, 'F');
           doc.text(h, x + 2, y + 5.5);
-          x += agColW[i];
+          x += colWidths[i];
         });
         y += 8;
 
         doc.setTextColor(0, 0, 0);
         doc.setFont('helvetica', 'normal');
-        statsByAgence.forEach((a, ri) => {
-          const row = [a.name, String(a.count), fmt(a.classique), a.vip > 0 ? fmt(a.vip) : '-', fmt(a.net)];
+        doc.setFontSize(8);
+        rows.forEach((row, ri) => {
           if (ri % 2 === 0) {
-            doc.setFillColor(240, 253, 250);
+            doc.setFillColor(240, 255, 248);
             x = 14;
             row.forEach((_c, i) => {
-              doc.rect(x, y, agColW[i], 7, 'F');
-              x += agColW[i];
+              doc.rect(x, y, colWidths[i], 7, 'F');
+              x += colWidths[i];
             });
           }
           x = 14;
           row.forEach((cell, i) => {
-            doc.rect(x, y, agColW[i], 7);
-            doc.text(cell.substring(0, 20), x + 2, y + 4.5);
-            x += agColW[i];
+            doc.rect(x, y, colWidths[i], 7);
+            const truncated = (cell || '-')
+              .toString()
+              .substring(0, Math.floor(colWidths[i] / 2.2));
+            doc.text(truncated, x + 2, y + 4.5);
+            x += colWidths[i];
           });
           y += 7;
-          if (y > 185) {
+          if (y > 188) {
             doc.addPage();
             y = 15;
           }
         });
+        return y;
+      };
+
+      drawHeader('Rapport Synthétique');
+      
+      const tableHeaders = [
+        'Agence/Ligne',
+        'Voyages (V/C)',
+        'Total Voy.',
+        'Autres Dép.',
+        'Carburant',
+        'Lavage',
+        'Tot. Dépenses',
+        'Recette Brute',
+        'Net à verser'
+      ];
+      
+      // Total width: ~215
+      const colWidths = [45, 25, 20, 25, 25, 25, 30, 35, 35];
+      
+      const tableRows = statsByAgence.map(a => [
+        a.name,
+        `${a.vipCount}V / ${a.classiqueCount}C`,
+        a.totalCount.toString(),
+        fmtCompact(a.otherExpense),
+        fmtCompact(a.fuelExpense),
+        fmtCompact(a.washExpense),
+        fmtCompact(a.totalExpense),
+        fmtCompact(a.revenue),
+        fmtCompact(a.net)
+      ]);
+      
+      let nextY = drawTable(tableHeaders, colWidths, tableRows, 45);
+
+      if (nextY > 150) {
+        doc.addPage();
+        nextY = 20;
+      } else {
+        nextY += 15;
       }
 
-      doc.save(`rapport-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('Rapport PDF exporte avec succes !');
+      // Summary
+      doc.setFillColor(6, 95, 70);
+      doc.rect(14, nextY, 120, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RÉSUMÉ GLOBAL', 16, nextY + 5.5);
+      
+      doc.setTextColor(0, 0, 0);
+      nextY += 12;
+      const summaryRows = [
+        ['Recette Brute Totale', fmt(globalRevenue)],
+        ['Total Dépenses', fmt(globalExpense)],
+        ['Net à verser Total', fmt(globalNet)],
+      ];
+      drawTable(['Métrique', 'Valeur'], [60, 60], summaryRows, nextY);
+
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${p} / ${totalPages}  —  Production Rex`, 14, 202);
+      }
+
+      doc.save(
+        `rapport-rex-${period.toLowerCase()}-${new Date()
+          .toISOString()
+          .split('T')[0]}.pdf`,
+      );
+      toast.success('Rapport PDF exporté avec succès !');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? (err as any)?.message : 'Erreur inconnue';
+      const msg = err instanceof Error ? (err as any).message : 'Erreur inconnue';
       toast.error('Erreur export PDF', { description: msg });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Export Excel
+  const exportExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Feuille 1: Liste des productions
+      const dataToExport = filteredRecords.map(r => ({
+        Date: new Date(r.date).toLocaleDateString('fr-FR'),
+        'Type': r.production_type || 'CLASSIQUE',
+        'Immatriculation': r.immatriculation,
+        'Chauffeur': r.driver_name,
+        'Agence/Ligne': r.ligne || r.agence_id,
+        'Recette Brut': r.revenue,
+        'Dépense Carburant': r.expense_fuel,
+        'Dépense Péage': r.expense_toll,
+        'Dépense Lavage': r.expense_washing,
+        'Autres Dépenses': r.expense_others,
+        'Net à Verser': r.net_to_deposit || (r.revenue - (r.expense_fuel + r.expense_toll + r.expense_washing + r.expense_others)),
+        'Caissière': r.caissiere_name
+      }));
+
+      const wsProd = XLSX.utils.json_to_sheet(dataToExport);
+      XLSX.utils.book_append_sheet(wb, wsProd, 'Productions');
+
+      // Feuille 2: Résumé par agence
+      const agenceData = statsByAgence.map(a => ({
+        'Agence': a.name,
+        'Voyages VIP': a.vipCount,
+        'Voyages Classique': a.classiqueCount,
+        'Total Voyages': a.totalCount,
+        'Dépense Carburant': a.fuelExpense,
+        'Dépense Lavage': a.washExpense,
+        'Autres Dépenses': a.otherExpense,
+        'Total Dépenses': a.totalExpense,
+        'Recette Brute': a.revenue,
+        'Net à Verser': a.net
+      }));
+      const wsAgence = XLSX.utils.json_to_sheet(agenceData);
+      XLSX.utils.book_append_sheet(wb, wsAgence, 'Résumé Agences');
+
+      // Feuille 3: Statistiques globales
+      const globalData = [
+        { 'Métrique': 'Recette Brute Totale', 'Valeur': globalRevenue },
+        { 'Métrique': 'Total Dépenses', 'Valeur': globalExpense },
+        { 'Métrique': 'Net à Verser Total', 'Valeur': globalNet }
+      ];
+      const wsGlobal = XLSX.utils.json_to_sheet(globalData);
+      XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé Global');
+
+      XLSX.writeFile(wb, `rapport-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success('Rapport Excel exporté avec succès !');
+    } catch (err: unknown) {
+       toast.error('Erreur lors de l\'export Excel');
     }
   };
 
@@ -380,9 +521,13 @@ export default function ReportsPage() {
             <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
             Actualiser
           </Button>
+          <Button variant="secondary" size="sm" onClick={exportExcel} disabled={loading || filteredRecords.length === 0} className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
+            <FileDown className="h-4 w-4 mr-2" />
+            Excel
+          </Button>
           <Button size="sm" onClick={exportPDF} disabled={loading || filteredRecords.length === 0}>
             <FileDown className="h-4 w-4 mr-2" />
-            Export PDF
+            PDF
           </Button>
         </div>
       </div>
@@ -437,91 +582,49 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/*  Statistiques Classique vs VIP  */}
+      {/*  Statistiques Globales  */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1,2,3].map(i => <Skeleton key={i} className="h-40 rounded-2xl" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* CLASSIQUE */}
+          {/* Recette Brute Totale */}
           <Card className="border-0 shadow-md bg-gradient-to-br from-primary/10 to-primary/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-primary flex items-center gap-2">
-                <Bus className="h-4 w-4" /> Productions CLASSIQUE
+                <BarChart3 className="h-4 w-4" /> Recette Brute Totale
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-black text-foreground">{statsClassique.count}</div>
-              <div className="text-xs text-muted-foreground">voyages effectues</div>
-              <div className="pt-2 space-y-1 border-t border-primary/10">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Recettes</span>
-                  <span className="font-bold text-primary">{fmt(statsClassique.revenue)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Net verse</span>
-                  <span className="font-bold text-emerald-600">{fmt(statsClassique.net)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Passagers</span>
-                  <span className="font-semibold">{statsClassique.passengers.toLocaleString()}</span>
-                </div>
-              </div>
+              <div className="text-3xl font-black text-foreground">{fmt(globalRevenue)}</div>
+              <div className="text-xs text-muted-foreground">tickets vendus</div>
             </CardContent>
           </Card>
 
-          {/* VIP */}
-          <Card className="border-0 shadow-md bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-transparent">
+          {/* Dépenses Totales */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-red-500/10 to-red-500/5">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-amber-600 flex items-center gap-2">
-                <Star className="h-4 w-4 fill-amber-400" /> Productions VIP
+              <CardTitle className="text-sm font-semibold text-red-600 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" /> Dépenses Totales
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-black text-foreground">{statsVIP.count}</div>
-              <div className="text-xs text-muted-foreground">voyages effectues</div>
-              <div className="pt-2 space-y-1 border-t border-amber-100 dark:border-amber-900/30">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Recettes</span>
-                  <span className="font-bold text-amber-600">{fmt(statsVIP.revenue)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Net verse</span>
-                  <span className="font-bold text-emerald-600">{fmt(statsVIP.net)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Passagers</span>
-                  <span className="font-semibold">{statsVIP.passengers.toLocaleString()}</span>
-                </div>
-              </div>
+              <div className="text-3xl font-black text-red-600">{fmt(globalExpense)}</div>
+              <div className="text-xs text-muted-foreground text-red-600/70">carburant + lavage + autres</div>
             </CardContent>
           </Card>
 
-          {/* TOTAL */}
-          <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-transparent border-l-4 border-l-emerald-500">
+          {/* Net à verser */}
+          <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-500/10 to-emerald-500/5">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" /> TOTAL GENERAL
+              <CardTitle className="text-sm font-semibold text-emerald-600 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> Net à verser Total
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-black text-foreground">{statsTotal.count}</div>
-              <div className="text-xs text-muted-foreground">toutes productions</div>
-              <div className="pt-2 space-y-1 border-t border-emerald-100 dark:border-emerald-900/30">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Recettes totales</span>
-                  <span className="font-bold text-emerald-600">{fmt(statsTotal.revenue)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Depenses totales</span>
-                  <span className="font-bold text-destructive">- {fmt(statsTotal.expenses)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold border-t border-emerald-200 dark:border-emerald-800 pt-1 mt-1">
-                  <span>Net total verse</span>
-                  <span className="text-emerald-600 text-base">{fmt(statsTotal.net)}</span>
-                </div>
-              </div>
+              <div className="text-3xl font-black text-emerald-600">{fmt(globalNet)}</div>
+              <div className="text-xs text-muted-foreground text-emerald-600/70">recette - dépenses</div>
             </CardContent>
           </Card>
         </div>
@@ -542,42 +645,47 @@ export default function ReportsPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 px-3 font-semibold text-muted-foreground">Agence</th>
-                    <th className="text-right py-2 px-3 font-semibold text-muted-foreground">Productions</th>
-                    <th className="text-right py-2 px-3 font-semibold text-primary">Classique</th>
-                    <th className="text-right py-2 px-3 font-semibold text-amber-600">VIP</th>
-                    <th className="text-right py-2 px-3 font-semibold text-emerald-600">Net Total</th>
+                    <th className="text-right py-2 px-3 font-semibold text-muted-foreground">Voyages (V/C)</th>
+                    <th className="text-right py-2 px-3 font-semibold text-muted-foreground">Total Voy.</th>
+                    <th className="text-right py-2 px-3 font-semibold text-destructive">Carburant</th>
+                    <th className="text-right py-2 px-3 font-semibold text-destructive">Lavage</th>
+                    <th className="text-right py-2 px-3 font-semibold text-destructive">Tot. Dépenses</th>
+                    <th className="text-right py-2 px-3 font-semibold text-primary">Recette Brute</th>
+                    <th className="text-right py-2 px-3 font-semibold text-emerald-600">Net à verser</th>
                   </tr>
                 </thead>
                 <tbody>
                   {statsByAgence.map((a, i) => (
                     <tr key={a.name} className={cn('border-b last:border-0', i % 2 === 0 ? 'bg-muted/20' : '')}>
                       <td className="py-2.5 px-3 font-medium">{a.name}</td>
-                      <td className="py-2.5 px-3 text-right text-muted-foreground">{a.count}</td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-primary">
-                        {fmtCompact(a.classique)} FCFA
+                      <td className="py-2.5 px-3 text-right text-muted-foreground whitespace-nowrap">
+                        <span className="text-amber-600">{a.vipCount}V</span> / <span className="text-primary">{a.classiqueCount}C</span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-amber-600">
-                        {a.vip > 0 ? `${fmtCompact(a.vip)} FCFA` : '-'}
+                      <td className="py-2.5 px-3 text-right text-muted-foreground font-semibold">{a.totalCount}</td>
+                      <td className="py-2.5 px-3 text-right text-destructive">{fmtCompact(a.fuelExpense)}</td>
+                      <td className="py-2.5 px-3 text-right text-destructive">{fmtCompact(a.washExpense)}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-destructive">{fmtCompact(a.totalExpense)}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-primary">
+                        {fmtCompact(a.revenue)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                        {fmtCompact(a.net)} FCFA
+                      <td className="py-2.5 px-3 text-right font-black text-emerald-600">
+                        {fmtCompact(a.net)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-primary/20 bg-primary/5">
-                    <td className="py-2.5 px-3 font-bold">TOTAL</td>
-                    <td className="py-2.5 px-3 text-right font-bold">{statsTotal.count}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-primary">
-                      {fmtCompact(statsClassique.revenue)} FCFA
+                    <td className="py-2.5 px-3 font-bold">TOTAL GLOBAL</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-muted-foreground">
+                      {statsByAgence.reduce((s, a) => s + a.vipCount, 0)}V / {statsByAgence.reduce((s, a) => s + a.classiqueCount, 0)}C
                     </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-amber-600">
-                      {fmtCompact(statsVIP.revenue)} FCFA
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                      {fmtCompact(statsTotal.net)} FCFA
-                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold">{statsByAgence.reduce((s, a) => s + a.totalCount, 0)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-destructive">{fmtCompact(globalFuel)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-destructive">{fmtCompact(globalWash)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-destructive">{fmtCompact(globalExpense)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-primary">{fmtCompact(globalRevenue)}</td>
+                    <td className="py-2.5 px-3 text-right font-black text-emerald-600">{fmtCompact(globalNet)}</td>
                   </tr>
                 </tfoot>
               </table>

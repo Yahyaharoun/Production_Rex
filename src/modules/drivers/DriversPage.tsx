@@ -151,14 +151,29 @@ export default function DriversPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [driversRes, vehiclesRes] = await Promise.all([
-        supabase.from('drivers').select('*, vehicles(immatriculation)').order('name'),
-        supabase.from('vehicles').select('id, immatriculation').order('immatriculation')
-      ]);
-      if (driversRes.error) throw driversRes.error;
-      if (vehiclesRes.error) throw vehiclesRes.error;
-      setDrivers(driversRes.data || []);
-      setVehicles(vehiclesRes.data || []);
+      if (navigator.onLine) {
+        const [driversRes, vehiclesRes] = await Promise.all([
+          supabase.from('drivers').select('*, vehicles(immatriculation)').order('name'),
+          supabase.from('vehicles').select('id, immatriculation').order('immatriculation')
+        ]);
+        if (driversRes.error) throw driversRes.error;
+        if (vehiclesRes.error) throw vehiclesRes.error;
+        setDrivers(driversRes.data || []);
+        setVehicles(vehiclesRes.data || []);
+      } else {
+        const allDrivers = await db.drivers.toArray();
+        const allVehicles = await db.vehicles.toArray();
+        setVehicles(allVehicles);
+        
+        const populatedDrivers = allDrivers.map(d => {
+          const v = allVehicles.find(v => v.id === d.assigned_vehicle_id);
+          return {
+            ...d,
+            vehicles: v ? { immatriculation: v.immatriculation } : undefined
+          };
+        });
+        setDrivers(populatedDrivers.sort((a, b) => a.name.localeCompare(b.name)));
+      }
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
