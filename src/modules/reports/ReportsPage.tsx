@@ -457,7 +457,7 @@ export default function ReportsPage() {
         'Dépense Lavage': r.expense_washing,
         'Autres Dépenses': r.expense_others,
         'Net à Verser': r.net_to_deposit || (r.revenue - (r.expense_fuel + r.expense_toll + r.expense_washing + r.expense_others)),
-        'Caissière': r.caissiere_name
+        'Agent Production': r.caissiere_name
       }));
 
       const wsProd = XLSX.utils.json_to_sheet(dataToExport);

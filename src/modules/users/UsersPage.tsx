@@ -195,8 +195,8 @@ export default function UsersPage() {
         <h2 className="text-3xl font-black tracking-tight text-foreground">Gestion des Comptes</h2>
         <p className="text-muted-foreground mt-1 font-medium">
           {isPDG
-            ? 'Créez et gérez les accès au système (Chefs d\'agence & Caissières).'
-            : `Gérez les caissières de votre agence${myAgenceName ? `  ${myAgenceName}` : ''}.`}
+            ? 'Créez et gérez les accès au système (Chefs d\'agence & Agents Production).'
+            : `Gérez les agents production de votre agence${myAgenceName ? `  ${myAgenceName}` : ''}.`}
         </p>
       </div>
 
@@ -208,7 +208,7 @@ export default function UsersPage() {
               <UserPlus className="mr-2 h-5 w-5 text-primary" /> Nouveau Compte
             </CardTitle>
             <CardDescription>
-              {isPDG ? 'Ajoutez un chef d\'agence ou une caissière.' : 'Ajoutez une caissière à votre agence.'}
+              {isPDG ? 'Ajoutez un chef d\'agence ou un agent production.' : 'Ajoutez un agent production à votre agence.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
@@ -235,14 +235,14 @@ export default function UsersPage() {
                     <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
                       className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                       <option value="CHEF_AGENCE">Chef d'Agence</option>
-                      <option value="CAISSIERE">Caissière</option>
-                      <option value="AGENT_RECETTE">Agent de Recette</option>
+                      <option value="CAISSIERE">Agent Production</option>
+                      <option value="AGENT_RECETTE">Caissière</option>
                     </select>
                   ) : (
                     <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)}
                       className="w-full rounded-xl bg-secondary/20 border border-border h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                      <option value="CAISSIERE">Caissière</option>
-                      <option value="AGENT_RECETTE">Agent de Recette</option>
+                      <option value="CAISSIERE">Agent Production</option>
+                      <option value="AGENT_RECETTE">Caissière</option>
                     </select>
                   )}
                 </div>
@@ -292,7 +292,7 @@ export default function UsersPage() {
             <CardHeader className="pb-4 border-b border-border/50">
               <CardTitle className="text-foreground flex items-center font-black text-lg">
                 <Users className="mr-2 h-5 w-5 text-primary" />
-                {isPDG ? 'Tous les utilisateurs' : `Caissières  ${myAgenceName || 'Mon agence'}`}
+                {isPDG ? 'Tous les utilisateurs' : `Agents Production ${myAgenceName || 'Mon agence'}`}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -304,7 +304,7 @@ export default function UsersPage() {
                 </div>
               ) : profiles.length === 0 ? (
                 <div className="p-12 text-center text-muted-foreground font-medium">
-                  {isChef ? 'Aucune caissière dans votre agence.' : 'Aucun utilisateur trouvé.'}
+                  {isChef ? 'Aucun agent production dans votre agence.' : 'Aucun utilisateur trouvé.'}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -339,7 +339,7 @@ export default function UsersPage() {
                               p.role === 'CHEF_AGENCE' ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
                             )}>
                               {p.role === 'PDG' && <ShieldCheck className="h-3 w-3" />}
-                              {p.role}
+                              {p.role === 'CAISSIERE' ? 'AGENT PRODUCTION' : p.role === 'AGENT_RECETTE' ? 'CAISSIÈRE' : p.role}
                             </span>
                           </td>
                           <td className="px-6 py-4">
