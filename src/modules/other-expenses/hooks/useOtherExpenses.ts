@@ -174,16 +174,20 @@ export function useOtherExpenses() {
     try {
       if (navigator.onLine) {
         const { error } = await supabase.from('other_expenses').delete().eq('id', clientId);
-        if (error) console.warn('Erreur suppression Supabase:', error.message);
+        if (error) throw error;
       } else {
         await queueSync('other_expenses', 'DELETE', { id: clientId });
       }
-      await db.otherExpenses.where('clientId').equals(clientId).delete();
+      
+      // Delete from local DB by clientId OR id
+      await db.otherExpenses.where('clientId').equals(clientId).delete().catch(() => {});
+      await db.otherExpenses.where('id').equals(clientId).delete().catch(() => {});
+      
       toast.success('Dépense supprimée avec succès');
       fetchExpenses();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting expense:', error);
-      toast.error('Erreur lors de la suppression');
+      toast.error('Erreur lors de la suppression: ' + (error.message || ''));
     }
   };
 
