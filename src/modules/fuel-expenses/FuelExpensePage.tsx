@@ -293,19 +293,7 @@ export default function FuelExpensePage() {
   };
 
 
-  const handleDelete = async (id: string, clientId: string, isFromProduction?: boolean) => {
-    if (!canDelete) return toast.error('Non autorisé');
-    if (isFromProduction) {
-      return toast.error('Action impossible', { description: 'Ce carburant est lié à une production. La suppression est impossible ici.' });
-    }
-    if (!confirm('Supprimer cette dépense carburant ?')) return;
 
-    try {
-      if (navigator.onLine && id && !id.startsWith('prod_')) {
-        const { error } = await supabase.from('fuel_expenses').delete().eq('id', id);
-        if (error) throw error;
-      } else if (!id.startsWith('prod_')) {
-        await queueSync('fuel_expenses', 'DELETE', { id: id || clientId });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingAll, setDeletingAll] = useState(false);
 
