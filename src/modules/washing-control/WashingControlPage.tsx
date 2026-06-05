@@ -253,9 +253,49 @@ export default function WashingControlPage() {
 
 
 
-  const handleDelete = async (id: string, clientId: string) => {
-    if (!canDelete) return toast.error('Non autorisé');
-    if (!confirm('Supprimer ce lavage ?')) return;
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingAll, setDeletingAll] = useState(false);
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const visibleRecords = washes.filter(r => r.id || r.clientId);
+    if (selectedIds.size === visibleRecords.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleRecords.map(r => (r.id || r.clientId)!)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!canDelete) return;
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} lavage(s) sélectionné(s) ? Cette action est définitive.`)) return;
+    
+    setDeletingAll(true);
+    for (const id of Array.from(selectedIds)) {
+      const w = washes.find(e => (e.id || e.clientId) === id);
+      if (w) {
+        await handleDelete(w.id, w.clientId || w.client_id, true); // true param is a flag for bulk mode
+      }
+    }
+    setDeletingAll(false);
+    setSelectedIds(new Set());
+    loadWashes();
+  };
+
+  const handleDelete = async (id: string, clientId: string, isBulk: boolean = false) => {
+    if (!canDelete) {
+      if (!isBulk) toast.error('Non autorisé');
+      return;
+    }
+    if (!isBulk && !confirm('Supprimer ce lavage ?')) return;
 
     try {
       if (navigator.onLine && id) {
@@ -268,10 +308,12 @@ export default function WashingControlPage() {
       const idToDelete = id || clientId;
       await db.washes.where('clientId').equals(idToDelete).delete().catch(() => {});
 
-      toast.success('Lavage supprimé');
-      loadWashes();
+      if (!isBulk) {
+        toast.success('Lavage supprimé');
+        loadWashes();
+      }
     } catch (err: any) {
-      toast.error('Erreur: ' + err.message);
+      if (!isBulk) toast.error('Erreur: ' + err.message);
     }
   };
 
@@ -325,11 +367,22 @@ export default function WashingControlPage() {
 
         {/* Historique */}
         <Card className="md:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Historique des lavages ({washes.length} entrée{washes.length !== 1 ? 's' : ''})
             </CardTitle>
+            {canDelete && selectedIds.size > 0 && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                onClick={handleDeleteSelected}
+                disabled={deletingAll}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -341,7 +394,15 @@ export default function WashingControlPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs text-muted-foreground bg-muted/50 uppercase">
                     <tr>
-                      <th className="px-4 py-3 rounded-tl-lg">Date</th>
+                      <th className="px-4 py-3 rounded-tl-lg w-10">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                          checked={selectedIds.size > 0 && selectedIds.size === washes.length}
+                          onChange={handleSelectAll}
+                        />
+                      </th>
+                      <th className="px-4 py-3">Date</th>
                       <th className="px-4 py-3">Véhicule</th>
                       <th className="px-4 py-3">Montant</th>
                       <th className="px-4 py-3">Auteur</th>
@@ -351,6 +412,14 @@ export default function WashingControlPage() {
                   <tbody>
                     {washes.map((wash: any, i) => (
                       <tr key={wash.id || wash.clientId || i} className="border-b border-border/50 hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                            checked={selectedIds.has(wash.id || wash.clientId)}
+                            onChange={() => handleToggleSelect(wash.id || wash.clientId)}
+                          />
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {wash.date ? new Date(wash.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—'}
                           {wash.syncStatus === 'PENDING' && <AlertCircle className="inline h-3 w-3 text-yellow-500 ml-1" title="En attente de sync" />}

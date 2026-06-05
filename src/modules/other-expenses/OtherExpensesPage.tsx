@@ -49,6 +49,9 @@ export default function OtherExpensesPage() {
 
   const filteredExpenses = expenses.filter(e => filter === 'ALL' || e.status === filter);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [validatingAll, setValidatingAll] = useState(false);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
@@ -60,6 +63,55 @@ export default function OtherExpensesPage() {
       default:
         return null;
     }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const visibleRecords = filteredExpenses.filter(r => r.id || r.clientId);
+    if (selectedIds.size === visibleRecords.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleRecords.map(r => (r.id || r.clientId)!)));
+    }
+  };
+
+  const handleValidateSelected = async () => {
+    if (!user || (user.role !== 'PDG' && user.role !== 'CHEF_AGENCE')) return;
+    if (selectedIds.size === 0) return;
+    
+    const toValidate = filteredExpenses.filter(r => selectedIds.has((r.id || r.clientId)!) && r.status === 'PENDING');
+    if (toValidate.length === 0) {
+      alert('Toutes les dépenses sélectionnées sont déjà traitées.');
+      return;
+    }
+    if (!window.confirm(`Voulez-vous valider les ${toValidate.length} dépense(s) sélectionnée(s) ?`)) return;
+    
+    setValidatingAll(true);
+    for (const record of toValidate) {
+      await validateExpense((record.id || record.clientId)!, 'VALIDATED', '');
+    }
+    setValidatingAll(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleDeleteSelected = async () => {
+    if (user?.role !== 'PDG' && user?.role !== 'CHEF_AGENCE') return;
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} dépense(s) sélectionnée(s) ? Cette action est définitive.`)) return;
+    
+    setValidatingAll(true);
+    for (const id of Array.from(selectedIds)) {
+      await deleteExpense(id);
+    }
+    setValidatingAll(false);
+    setSelectedIds(new Set());
   };
 
   return (
@@ -87,8 +139,29 @@ export default function OtherExpensesPage() {
         <CardHeader className="bg-secondary/5 pb-4 p-6 border-b border-border/50 flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-black text-foreground flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" /> Demandes de Dépenses
-          </CardTitle>
-          <div className="flex gap-2 items-center">
+             <div className="flex gap-2 items-center">
+            {selectedIds.size > 0 && (user?.role === 'PDG' || user?.role === 'CHEF_AGENCE') && (
+              <div className="flex gap-2 mr-4">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-9 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                  onClick={handleDeleteSelected}
+                  disabled={validatingAll}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                </Button>
+                <Button 
+                  size="sm" 
+                  className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                  onClick={handleValidateSelected}
+                  disabled={validatingAll}
+                >
+                  <CheckCircle className="h-4 w-4 mr-1.5" /> 
+                  {validatingAll ? 'Validation...' : `Valider (${selectedIds.size})`}
+                </Button>
+              </div>
+            )}
             <Filter className="h-4 w-4 text-muted-foreground" />
             <select 
               value={filter} 
@@ -101,33 +174,57 @@ export default function OtherExpensesPage() {
               <option value="REJECTED">Rejetées</option>
             </select>
           </div>
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-6 space-y-4">
-              <Skeleton className="h-20 w-full rounded-xl" />
-              <Skeleton className="h-20 w-full rounded-xl" />
+              <Skeleton className="h-12 w-full rounded-xl" />
+              <Skeleton className="h-12 w-full rounded-xl" />
+              <Skeleton className="h-12 w-full rounded-xl" />
             </div>
           ) : filteredExpenses.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground font-medium">
-              Aucune dépense trouvée.
+            <div className="text-center py-16 px-4">
+              <div className="bg-secondary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <p className="text-muted-foreground font-medium text-lg">Aucune dépense trouvée</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">Ajoutez une nouvelle dépense pour commencer</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs uppercase bg-secondary/30 text-muted-foreground border-b border-border font-bold">
+                <thead className="bg-secondary/5 text-muted-foreground font-bold text-xs uppercase tracking-wider border-b border-border">
                   <tr>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Dépense & Motif</th>
-                    <th className="px-6 py-4">Auteur</th>
-                    <th className="px-6 py-4 text-right">Montant Total</th>
+                    <th className="px-6 py-4 rounded-tl-xl w-10">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                        checked={selectedIds.size > 0 && selectedIds.size === filteredExpenses.length}
+                        onChange={handleSelectAll}
+                      />
+                    </th>
+                    <th className="px-6 py-4">Date & Agence</th>
+                    <th className="px-6 py-4">Type & Description</th>
+                    <th className="px-6 py-4 text-right">Montant</th>
                     <th className="px-6 py-4">Statut</th>
-                    <th className="px-6 py-4 text-right"></th>
+                    <th className="px-6 py-4 text-right rounded-tr-xl">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {filteredExpenses.map((expense) => (
-                    <tr key={expense.id || expense.clientId} className="hover:bg-secondary/20 transition-colors group">
+                    <tr key={expense.id || expense.clientId} className={cn(
+                      "group transition-colors hover:bg-secondary/5",
+                      selectedIds.has((expense.id || expense.clientId)!) && "bg-primary/5"
+                    )}>
+                      <td className="px-6 py-4">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                          checked={selectedIds.has((expense.id || expense.clientId)!)}
+                          onChange={() => handleToggleSelect((expense.id || expense.clientId)!)}
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="font-bold">{expense.date}</div>
                         <div className="text-[10px] text-muted-foreground">{expense.time}</div>

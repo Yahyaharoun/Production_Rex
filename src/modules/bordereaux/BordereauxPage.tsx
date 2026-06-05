@@ -587,27 +587,48 @@ export default function BordereauxPage() {
   };
 
   const handleSelectAll = () => {
-    const unvalidated = history.filter(r => r.status !== 'VALIDATED' && r.id);
-    if (selectedIds.size === unvalidated.length) {
+    const visibleRecords = history.filter(r => r.id);
+    if (selectedIds.size === visibleRecords.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(unvalidated.map(r => r.id)));
+      setSelectedIds(new Set(visibleRecords.map(r => r.id)));
     }
   };
 
   const handleValidateSelected = async () => {
     if (!canValidate || selectedIds.size === 0) return;
-    if (!confirm(`Voulez-vous valider les ${selectedIds.size} production(s) sélectionnée(s) ? Elles apparaîtront dans les rapports.`)) return;
+    const toValidate = history.filter(r => selectedIds.has(r.id) && r.status !== 'BORDEREAU_TERMINE');
+    if (toValidate.length === 0) {
+      toast.info('Tous les bordereaux sélectionnés sont déjà validés.');
+      return;
+    }
+    if (!confirm(`Voulez-vous valider les ${toValidate.length} bordereau(x) sélectionné(s) ?`)) return;
     setValidatingAll(true);
     let ok = 0; let fail = 0;
-    for (const id of Array.from(selectedIds)) {
-      const { error } = await supabase.from('productions').update({ status: 'BORDEREAU_TERMINE' }).eq('id', id);
+    for (const record of toValidate) {
+      const { error } = await supabase.from('productions').update({ status: 'BORDEREAU_TERMINE' }).eq('id', record.id);
       if (error) fail++; else ok++;
     }
     setValidatingAll(false);
     setSelectedIds(new Set());
-    if (ok > 0) toast.success(`${ok} production(s) validée(s) !`);
-    if (fail > 0) toast.error(`${fail} production(s) en erreur.`);
+    if (ok > 0) toast.success(`${ok} bordereau(x) validé(s) !`);
+    if (fail > 0) toast.error(`${fail} validation(s) en erreur.`);
+    fetchHistory();
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!canValidate || selectedIds.size === 0) return;
+    if (!confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} bordereau(x) sélectionné(s) ? Cette action est définitive.`)) return;
+    setValidatingAll(true);
+    let ok = 0; let fail = 0;
+    for (const id of Array.from(selectedIds)) {
+      const { error } = await supabase.from('productions').delete().eq('id', id);
+      if (error) fail++; else ok++;
+    }
+    setValidatingAll(false);
+    setSelectedIds(new Set());
+    if (ok > 0) toast.success(`${ok} bordereau(x) supprimé(s) !`);
+    if (fail > 0) toast.error(`${fail} suppression(s) en erreur.`);
     fetchHistory();
   };
 
@@ -994,15 +1015,26 @@ export default function BordereauxPage() {
                       {selectedIds.size === history.filter(r => r.status !== 'VALIDATED').length && selectedIds.size > 0 ? 'Tout décocher' : 'Tout cocher'}
                     </Button>
                     {selectedIds.size > 0 && (
-                      <Button
-                        size="sm"
-                        onClick={handleValidateSelected}
-                        disabled={validatingAll}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        {validatingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
-                        Valider {selectedIds.size} sélection(s)
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                          onClick={handleDeleteSelected}
+                          disabled={validatingAll}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                          onClick={handleValidateSelected}
+                          disabled={validatingAll}
+                        >
+                          {validatingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+                          Valider ({selectedIds.size})
+                        </Button>
+                      </div>
                     )}
                   </>
                 )}

@@ -306,18 +306,71 @@ export default function FuelExpensePage() {
         if (error) throw error;
       } else if (!id.startsWith('prod_')) {
         await queueSync('fuel_expenses', 'DELETE', { id: id || clientId });
-      }
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingAll, setDeletingAll] = useState(false);
 
-      // Remove from local cache
-      if (!id.startsWith('prod_')) {
-        const idToDelete = id || clientId;
-        await db.fuelExpenses.where('clientId').equals(idToDelete).delete().catch(() => {});
-      }
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
 
-      toast.success('Dépense supprimée');
-      loadExpenses();
+  const handleSelectAll = () => {
+    const visibleRecords = expenses.filter(r => r.id || r.clientId);
+    if (selectedIds.size === visibleRecords.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleRecords.map(r => (r.id || r.clientId)!)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!canDelete) return;
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} dépense(s) sélectionnée(s) ? Cette action est définitive.`)) return;
+    
+    setDeletingAll(true);
+    for (const id of Array.from(selectedIds)) {
+      const exp = expenses.find(e => (e.id || e.clientId) === id);
+      if (exp) {
+        await handleDelete(exp.id, exp.clientId || exp.client_id, exp.isFromProduction);
+      }
+    }
+    setDeletingAll(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleDelete = async (id: string, clientId: string, isFromProduction: boolean) => {
+    if (!canDelete) {
+      toast.error('Vous n\'avez pas les droits pour supprimer.');
+      return;
+    }
+    
+    // Si ce n'est pas depuis handleDeleteSelected, on demande confirmation
+    if (arguments.length === 3 && deletingAll === false) {
+      if (!window.confirm('Voulez-vous vraiment supprimer cette dépense de carburant ?')) return;
+    }
+
+    try {
+      if (isFromProduction) {
+        const prodId = id.replace('prod_', '');
+        await supabase.from('productions').update({ expense_fuel: 0 }).eq('id', prodId);
+        await db.productions.where('id').equals(prodId).modify({ expense_fuel: 0 });
+      } else {
+        if (navigator.onLine && id) {
+          await supabase.from('fuel_expenses').delete().eq('id', id);
+        }
+        await db.fuelExpenses.delete(clientId);
+      }
+      if (!deletingAll) {
+         toast.success('Dépense supprimée');
+         loadExpenses();
+      }
     } catch (err: any) {
-      toast.error('Erreur suppression: ' + err.message);
+      if (!deletingAll) toast.error('Erreur', { description: err.message });
+      console.error(err);
     }
   };
 
@@ -326,11 +379,11 @@ export default function FuelExpensePage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Carburant Avancé</h1>
-          <p className="text-muted-foreground">Gestion du carburant VIP et Classique</p>
+          <h2 className="text-2xl font-bold tracking-tight">Carburant</h2>
+          <p className="text-muted-foreground">Gestion des dépenses de carburant</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadExpenses} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -344,28 +397,39 @@ export default function FuelExpensePage() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Bus className="h-5 w-5 text-primary" />
-              Nouvelle dépense
+              Nouvelle Dépense
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label>Immatriculation</Label>
-                <Input {...register('vehicleImmat')} placeholder="Ex: CE-123-AB" />
+                <Label>Véhicule</Label>
+                <select 
+                  {...register('vehicleImmat')}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  onChange={(e) => {
+                    const veh = vehicles.find(v => v.immatriculation === e.target.value);
+                    if (veh) {
+                      const type = veh.immatriculation.includes('(VIP)') ? 'VIP' : 'CLASSIQUE';
+                      reset({ ...register, category: type, lineName: veh.ligne_actuelle || '' });
+                    }
+                  }}
+                >
+                  <option value="">Sélectionner un véhicule</option>
+                  {vehicles.map(v => (
+                    <option key={v.id || v.clientId} value={v.immatriculation}>
+                      {v.immatriculation} - {v.marque}
+                    </option>
+                  ))}
+                </select>
                 {errors.vehicleImmat && <p className="text-xs text-red-500">{errors.vehicleImmat.message}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label>Ligne</Label>
-                <Input {...register('lineName')} placeholder="Ex: Yaoundé - Douala" />
-                {errors.lineName && <p className="text-xs text-red-500">{errors.lineName.message}</p>}
-              </div>
-
-              <div className="space-y-2">
                 <Label>Catégorie</Label>
-                <select
+                <select 
                   {...register('category')}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="CLASSIQUE">Classique</option>
                   <option value="VIP">VIP</option>
@@ -374,8 +438,14 @@ export default function FuelExpensePage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Ligne</Label>
+                <Input {...register('lineName')} placeholder="Ex: YAOUNDE - DOUALA" />
+                {errors.lineName && <p className="text-xs text-red-500">{errors.lineName.message}</p>}
+              </div>
+
+              <div className="space-y-2">
                 <Label>Montant (FCFA)</Label>
-                <Input type="number" {...register('amount')} />
+                <Input type="number" {...register('amount')} placeholder="0" />
                 {errors.amount && <p className="text-xs text-red-500">{errors.amount.message}</p>}
               </div>
 
@@ -394,11 +464,22 @@ export default function FuelExpensePage() {
 
         {/* Historique */}
         <Card className="md:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Historique récent ({expenses.length} entrée{expenses.length !== 1 ? 's' : ''})
             </CardTitle>
+            {canDelete && selectedIds.size > 0 && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                onClick={handleDeleteSelected}
+                disabled={deletingAll}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -410,7 +491,15 @@ export default function FuelExpensePage() {
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs text-muted-foreground bg-muted/50 uppercase">
                     <tr>
-                      <th className="px-4 py-3 rounded-tl-lg">Date</th>
+                      <th className="px-4 py-3 rounded-tl-lg w-10">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                          checked={selectedIds.size > 0 && selectedIds.size === expenses.length}
+                          onChange={handleSelectAll}
+                        />
+                      </th>
+                      <th className="px-4 py-3">Date</th>
                       <th className="px-4 py-3">Véhicule</th>
                       <th className="px-4 py-3">Ligne</th>
                       <th className="px-4 py-3">Catégorie</th>
@@ -422,6 +511,14 @@ export default function FuelExpensePage() {
                   <tbody>
                     {expenses.map((exp: any, i) => (
                       <tr key={exp.id || exp.clientId || i} className="border-b border-border/50 hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-slate-300 w-4 h-4 text-primary focus:ring-primary"
+                            checked={selectedIds.has(exp.id || exp.clientId)}
+                            onChange={() => handleToggleSelect(exp.id || exp.clientId)}
+                          />
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {exp.date ? new Date(exp.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—'}
                           {(exp.syncStatus === 'PENDING') && <AlertCircle className="inline h-3 w-3 text-yellow-500 ml-1" title="En attente de sync" />}

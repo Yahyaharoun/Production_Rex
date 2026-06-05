@@ -586,21 +586,26 @@ export default function ProductionPage() {
   };
 
   const handleSelectAll = () => {
-    const unvalidated = history.filter(r => r.status !== 'VALIDATED' && r.id);
-    if (selectedIds.size === unvalidated.length) {
+    const visibleRecords = history.filter(r => r.id);
+    if (selectedIds.size === visibleRecords.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(unvalidated.map(r => r.id)));
+      setSelectedIds(new Set(visibleRecords.map(r => r.id)));
     }
   };
 
   const handleValidateSelected = async () => {
     if (!canValidate || selectedIds.size === 0) return;
-    if (!confirm(`Voulez-vous valider les ${selectedIds.size} production(s) sélectionnée(s) ? Elles apparaîtront dans les rapports.`)) return;
+    const toValidate = history.filter(r => selectedIds.has(r.id) && r.status !== 'VALIDATED');
+    if (toValidate.length === 0) {
+      toast.info('Toutes les productions sélectionnées sont déjà validées.');
+      return;
+    }
+    if (!confirm(`Voulez-vous valider les ${toValidate.length} production(s) sélectionnée(s) ? Elles apparaîtront dans les rapports.`)) return;
     setValidatingAll(true);
     let ok = 0; let fail = 0;
-    for (const id of Array.from(selectedIds)) {
-      const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
+    for (const record of toValidate) {
+      const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', record.id);
       if (error) fail++; else ok++;
     }
     setValidatingAll(false);
