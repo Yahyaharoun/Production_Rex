@@ -10,11 +10,14 @@ export async function prefetchForOffline(agenceId?: string) {
   if (!navigator.onLine) return;
 
   try {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 20000); // 20 seconds timeout
+
     // Pull reference data: vehicles, agencies, drivers
     const [vehiclesRes, agenciesRes, driversRes] = await Promise.all([
-      supabase.from('vehicles').select('*'),
-      supabase.from('agencies').select('*'),
-      supabase.from('drivers').select('*'),
+      supabase.from('vehicles').select('*').abortSignal(abortController.signal),
+      supabase.from('agencies').select('*').abortSignal(abortController.signal),
+      supabase.from('drivers').select('*').abortSignal(abortController.signal),
     ]);
 
     if (vehiclesRes.data) {
@@ -39,25 +42,29 @@ export async function prefetchForOffline(agenceId?: string) {
       .from('productions')
       .select('*')
       .gte('date', sinceStr)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .abortSignal(abortController.signal);
 
     let fuelQuery = supabase
       .from('fuel_expenses')
       .select('*')
       .gte('date', sinceStr)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .abortSignal(abortController.signal);
 
     let washQuery = supabase
       .from('washes')
       .select('*')
       .gte('date', sinceStr)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .abortSignal(abortController.signal);
 
     let otherQuery = supabase
       .from('other_expenses')
       .select('*')
       .gte('date', sinceStr)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .abortSignal(abortController.signal);
 
     if (agenceId) {
       prodsQuery  = prodsQuery.eq('agence_id', agenceId);
@@ -72,6 +79,8 @@ export async function prefetchForOffline(agenceId?: string) {
       washQuery,
       otherQuery,
     ]);
+    
+    clearTimeout(timeoutId);
 
     // Store productions
     if (prodsRes.data && prodsRes.data.length > 0) {

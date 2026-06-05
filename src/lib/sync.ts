@@ -80,14 +80,17 @@ export class SyncEngine {
   }
 
   static async pullFromServer() {
-    // Only basic pulling for read-only tables for now to avoid overwriting local changes.
-    // Vehicles, Agencies, Drivers.
     try {
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 15000); // 15 seconds timeout
+
       const [vehiclesRes, agenciesRes, driversRes] = await Promise.all([
-        supabase.from('vehicles').select('*'),
-        supabase.from('agencies').select('*'),
-        supabase.from('drivers').select('*')
+        supabase.from('vehicles').select('*').abortSignal(abortController.signal),
+        supabase.from('agencies').select('*').abortSignal(abortController.signal),
+        supabase.from('drivers').select('*').abortSignal(abortController.signal)
       ]);
+      
+      clearTimeout(timeoutId);
 
       if (vehiclesRes.data) {
         await db.vehicles.clear();
@@ -101,8 +104,12 @@ export class SyncEngine {
         await db.drivers.clear();
         await db.drivers.bulkAdd(driversRes.data);
       }
-    } catch(err) {
-      console.error('Error pulling from server:', err);
+    } catch(err: any) {
+      if (err.name === 'AbortError') {
+        console.warn('Pull from server timed out due to slow network.');
+      } else {
+        console.error('Error pulling from server:', err);
+      }
     }
   }
 
