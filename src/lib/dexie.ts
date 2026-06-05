@@ -122,6 +122,7 @@ export class RexDatabase extends Dexie {
   drivers!: Table<any>;
   activityLog!: Table<OfflineActivityLog>;
   syncQueue!: Table<SyncQueueItem>;
+  offlineUsers!: Table<any>;
 
   constructor() {
     super('RexOfflineDB');
@@ -149,6 +150,20 @@ export class RexDatabase extends Dexie {
       drivers:      'id, name, status',
       activityLog:  '++id, clientId, created_at, action, entity_type, synced',
       syncQueue:    '++id, clientId, table, status, createdAt',
+    });
+
+    // Version 3: add offlineUsers table for offline login
+    this.version(3).stores({
+      productions:  'clientId, date, agence_id, synced, immatriculation',
+      fuelExpenses: 'clientId, date, vehicleImmat, agenceId, category, synced',
+      otherExpenses:'clientId, date, agence_id, status, synced',
+      washes:       'clientId, date, vehicleImmat, agenceId, synced',
+      vehicles:     'id, immatriculation, status, production_type',
+      agencies:     'id, name',
+      drivers:      'id, name, status',
+      activityLog:  '++id, clientId, created_at, action, entity_type, synced',
+      syncQueue:    '++id, clientId, table, status, createdAt',
+      offlineUsers: 'email, userId',
     });
   }
 }

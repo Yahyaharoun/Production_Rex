@@ -4,10 +4,11 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Mail, Lock, Loader2, LogIn, Bus } from 'lucide-react';
+import { Mail, Lock, Loader2, LogIn, Bus, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { cacheUserCredentials, offlineLogin } from '../../lib/offlineAuth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -26,8 +27,49 @@ export default function LoginPage() {
     }
     
     setLoading(true);
-    console.log('[REX-AUTH] Tentative de connexion pour:', email);
+
+    // ─── MODE HORS LIGNE ────────────────────────────────────────────────────────
+    if (!isOnline) {
+      try {
+        console.log('[REX-AUTH] Mode hors ligne – vérification du cache local...');
+        const offlineUser = await offlineLogin(email, password);
+        if (!offlineUser) {
+          toast.error('Connexion hors ligne impossible', {
+            description: 'Identifiants incorrects ou compte non enregistré localement. Connectez-vous en ligne au moins une fois.',
+          });
+          return;
+        }
+
+        login(
+          {
+            id: offlineUser.id,
+            email: offlineUser.email,
+            name: offlineUser.name,
+            role: offlineUser.role as any,
+            agenceId: offlineUser.agenceId,
+            lineIds: offlineUser.lineIds,
+            isActive: offlineUser.isActive,
+          },
+          // Pas de vrai token – zustand/persist a déjà l'ancien token en localStorage
+          'offline-token'
+        );
+
+        toast.success('Connexion hors ligne réussie', {
+          description: '⚡ Mode hors ligne actif. Vos données seront synchronisées à la reconnexion.',
+        });
+        navigate('/app/dashboard');
+      } catch (err: unknown) {
+        console.error('[REX-AUTH] Erreur connexion hors ligne:', (err as any)?.message);
+        toast.error('Erreur', { description: (err as any)?.message || 'Erreur inconnue.' });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ─── MODE EN LIGNE ──────────────────────────────────────────────────────────
     try {
+      console.log('[REX-AUTH] Tentative de connexion pour:', email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
@@ -50,14 +92,24 @@ export default function LoginPage() {
       
       console.log('[REX-AUTH] Profil chargé avec succès. Rôle:', profile?.role);
       
-      login({
+      const userObj = {
         id: data.user.id,
         email: data.user.email!,
         name: profile?.name || 'Utilisateur',
-        role: (profile?.role?.toUpperCase() || 'CHAUFFEUR') as any,
+        role: (profile?.role?.toUpperCase() || 'CAISSIERE') as any,
         agenceId: profile?.agence_id || '',
         lineIds: profile?.line_ids || (profile?.agence_id ? [profile.agence_id] : []),
-        isActive: profile?.is_active ?? true
+        isActive: profile?.is_active ?? true,
+      };
+
+      login(userObj, data.session.access_token);
+
+      // ── Mise en cache pour connexion hors ligne ──
+      await cacheUserCredentials(email, password, profile || {
+        id: data.user.id,
+        name: userObj.name,
+        role: userObj.role,
+        agence_id: userObj.agenceId,
       }, data.session.access_token);
 
       toast.success('Connexion réussie', { description: 'Bienvenue sur Production Rex' });
@@ -84,17 +136,19 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
+          {/* Bannière de statut réseau */}
           {!isOnline && (
-            <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-4 rounded-lg text-sm">
-              <p className="font-bold flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" /> Mode Hors Ligne
-              </p>
-              <p className="mt-1">
-                La connexion requiert Internet. Si vous venez d'installer l'application (PWA), 
-                vous <strong>devez</strong> vous connecter au moins une fois en ligne pour synchroniser vos données locales.
-              </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+              <WifiOff className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-800">
+                <p className="font-bold">Mode Hors Ligne</p>
+                <p className="mt-0.5 opacity-80">
+                  Connexion locale disponible si vous vous êtes déjà connecté sur cet appareil.
+                </p>
+              </div>
             </div>
           )}
+
           <div className="space-y-2">
             <Label htmlFor="email" className="text-[10px] font-black uppercase tracking-[0.2em] ml-1 text-muted-foreground">Email Professionnel</Label>
             <div className="relative">
@@ -115,9 +169,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-black shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 mt-2" disabled={loading}>
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-black shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 mt-2"
+            disabled={loading}
+          >
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-            Se connecter
+            {isOnline ? 'Se connecter' : 'Connexion hors ligne'}
           </Button>
         </form>
 
@@ -133,5 +191,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-
