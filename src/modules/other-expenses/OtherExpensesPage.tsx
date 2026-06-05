@@ -104,11 +104,25 @@ export default function OtherExpensesPage() {
     if (!isConfirmed) return;
     
     setValidatingAll(true);
-    for (const record of toValidate) {
-      await validateExpense((record.id || record.clientId)!, 'VALIDATED', '');
+    setValidatingAll(true);
+    const idsToValidate = toValidate.map(r => r.id);
+    if (navigator.onLine && idsToValidate.length > 0) {
+      const { error } = await supabase.from('other_expenses').update({ status: 'VALIDATED' }).in('id', idsToValidate);
+      if (error) {
+        toast.error('Erreur de validation multiple', { description: error.message });
+      } else {
+        toast.success(`${idsToValidate.length} dépense(s) validée(s) !`);
+      }
+    } else {
+      for (const record of toValidate) {
+        await validateExpense((record.id || record.clientId)!, 'VALIDATED', '');
+      }
+      toast.success(`${toValidate.length} dépense(s) validée(s) hors ligne !`);
     }
+    
     setValidatingAll(false);
     setSelectedIds(new Set());
+    loadExpenses();
   };
 
   const handleDeleteSelected = async () => {
@@ -123,11 +137,25 @@ export default function OtherExpensesPage() {
     if (!isConfirmed) return;
     
     setValidatingAll(true);
-    for (const id of Array.from(selectedIds)) {
-      await deleteExpense(id);
+    setValidatingAll(true);
+    const idsToDelete = Array.from(selectedIds);
+    if (navigator.onLine && idsToDelete.length > 0) {
+      const { error } = await supabase.from('other_expenses').delete().in('id', idsToDelete);
+      if (error) {
+        toast.error('Erreur de suppression multiple', { description: error.message });
+      } else {
+        toast.success(`${idsToDelete.length} dépense(s) supprimée(s) !`);
+      }
+    } else {
+      for (const id of idsToDelete) {
+        await deleteExpense(id);
+      }
+      toast.success(`${idsToDelete.length} dépense(s) supprimée(s) hors ligne !`);
     }
+    
     setValidatingAll(false);
     setSelectedIds(new Set());
+    loadExpenses();
   };
 
   return (

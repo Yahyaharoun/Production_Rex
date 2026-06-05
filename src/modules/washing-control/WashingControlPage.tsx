@@ -282,12 +282,23 @@ export default function WashingControlPage() {
     if (!isConfirmed) return;
     
     setDeletingAll(true);
-    for (const id of Array.from(selectedIds)) {
-      const w = washes.find(e => (e.id || e.clientId) === id);
-      if (w) {
-        await handleDelete(w.id, w.clientId || w.client_id, true); // true param is a flag for bulk mode
+    const idsToDelete = Array.from(selectedIds);
+    if (navigator.onLine && idsToDelete.length > 0) {
+      const { error } = await supabase.from('washes').delete().in('id', idsToDelete);
+      if (error) {
+        toast.error('Erreur', { description: error.message });
+      } else {
+        toast.success(`${idsToDelete.length} lavage(s) supprimé(s)`);
       }
+    } else {
+      // Offline fallback: delete locally only
+      for (const id of idsToDelete) {
+        const w = washes.find(e => (e.id || e.clientId) === id);
+        if (w) await handleDelete(w.id, w.clientId || w.client_id, true);
+      }
+      toast.success(`${idsToDelete.length} lavage(s) mis en attente de suppression`);
     }
+
     setDeletingAll(false);
     setSelectedIds(new Set());
     loadWashes();

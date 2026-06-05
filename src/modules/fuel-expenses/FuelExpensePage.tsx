@@ -323,14 +323,26 @@ export default function FuelExpensePage() {
     if (!isConfirmed) return;
     
     setDeletingAll(true);
-    for (const id of Array.from(selectedIds)) {
-      const exp = expenses.find(e => (e.id || e.clientId) === id);
-      if (exp) {
-        await handleDelete(exp.id, exp.clientId || exp.client_id, exp.isFromProduction);
+    const idsToDelete = Array.from(selectedIds);
+    if (navigator.onLine && idsToDelete.length > 0) {
+      const { error } = await supabase.from('fuel_expenses').delete().in('id', idsToDelete);
+      if (error) {
+        toast.error('Erreur', { description: error.message });
+      } else {
+        toast.success(`${idsToDelete.length} dépense(s) supprimée(s)`);
       }
+    } else {
+      // Offline fallback: delete locally only
+      for (const id of idsToDelete) {
+        const w = expenses.find(e => (e.id || e.clientId) === id);
+        if (w) await handleDelete(w.id, w.clientId || w.client_id, !!w.isFromProduction);
+      }
+      toast.success(`${idsToDelete.length} dépense(s) mis en attente de suppression`);
     }
+
     setDeletingAll(false);
     setSelectedIds(new Set());
+    loadExpenses();
   };
 
   const handleDelete = async (id: string, clientId: string, isFromProduction: boolean) => {

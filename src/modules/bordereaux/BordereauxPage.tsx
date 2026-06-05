@@ -622,15 +622,17 @@ export default function BordereauxPage() {
     });
     if (!isConfirmed) return;
     setValidatingAll(true);
-    let ok = 0; let fail = 0;
-    for (const record of toValidate) {
-      const { error } = await supabase.from('productions').update({ status: 'BORDEREAU_TERMINE' }).eq('id', record.id);
-      if (error) fail++; else ok++;
-    }
+    const idsToValidate = toValidate.map(r => r.id);
+    const { error } = await supabase.from('productions').update({ status: 'BORDEREAU_TERMINE' }).in('id', idsToValidate);
+    
     setValidatingAll(false);
-    setSelectedIds(new Set());
-    if (ok > 0) toast.success(`${ok} bordereau(x) validé(s) !`);
-    if (fail > 0) toast.error(`${fail} validation(s) en erreur.`);
+    if (!error) {
+      toast.success(`${idsToValidate.length} bordereau(x) validé(s) !`);
+      setSelectedIds(new Set());
+      fetchHistory();
+    } else {
+      toast.error('Erreur de validation multiple', { description: error.message });
+    }
     fetchHistory();
   };
 
@@ -643,16 +645,17 @@ export default function BordereauxPage() {
     });
     if (!isConfirmed) return;
     setValidatingAll(true);
-    let ok = 0; let fail = 0;
-    for (const id of Array.from(selectedIds)) {
-      const { error } = await supabase.from('productions').delete().eq('id', id);
-      if (error) fail++; else ok++;
-    }
+    const idsToDelete = Array.from(selectedIds);
+    const { error } = await supabase.from('productions').delete().in('id', idsToDelete);
+    
     setValidatingAll(false);
-    setSelectedIds(new Set());
-    if (ok > 0) toast.success(`${ok} bordereau(x) supprimé(s) !`);
-    if (fail > 0) toast.error(`${fail} suppression(s) en erreur.`);
-    fetchHistory();
+    if (!error) {
+      toast.success(`${idsToDelete.length} bordereau(x) supprimé(s) !`);
+      setSelectedIds(new Set());
+      fetchHistory();
+    } else {
+      toast.error('Erreur de suppression multiple', { description: error.message });
+    }
   };
 
   const handlePrintDone = async (tripNumber: string) => {

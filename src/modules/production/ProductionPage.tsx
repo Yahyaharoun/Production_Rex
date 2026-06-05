@@ -638,15 +638,17 @@ export default function ProductionPage() {
     if (!isConfirmed) return;
     
     setValidatingAll(true);
-    let ok = 0; let fail = 0;
-    for (const record of toValidate) {
-      const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', record.id);
-      if (error) fail++; else ok++;
-    }
+    const idsToValidate = toValidate.map(r => r.id);
+    const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).in('id', idsToValidate);
+    
     setValidatingAll(false);
-    setSelectedIds(new Set());
-    if (ok > 0) toast.success(`${ok} production(s) validée(s) !`);
-    if (fail > 0) toast.error(`${fail} production(s) en erreur.`);
+    if (!error) {
+      toast.success(`${idsToValidate.length} production(s) validée(s) !`);
+      setSelectedIds(new Set());
+      fetchHistory();
+    } else {
+      toast.error('Erreur de validation multiple', { description: error.message });
+    }
     fetchHistory();
   };
 
@@ -660,16 +662,17 @@ export default function ProductionPage() {
     if (!isConfirmed) return;
     
     setDeletingAll(true);
-    let ok = 0; let fail = 0;
-    for (const id of Array.from(selectedIds)) {
-      const { error } = await supabase.from('productions').delete().eq('id', id);
-      if (error) fail++; else ok++;
+    const idsToDelete = Array.from(selectedIds);
+    const { error } = await supabase.from('productions').delete().in('id', idsToDelete);
+    
+    setDeletingAll(false);
+    if (!error) {
+      toast.success(`${idsToDelete.length} production(s) supprimée(s) !`);
+      setSelectedIds(new Set());
+      fetchHistory();
+    } else {
+      toast.error('Erreur de suppression multiple', { description: error.message });
     }
-    setValidatingAll(false);
-    setSelectedIds(new Set());
-    if (ok > 0) toast.success(`${ok} production(s) supprimée(s) !`);
-    if (fail > 0) toast.error(`${fail} suppression(s) en erreur.`);
-    fetchHistory();
   };
 
   const handlePrintDone = async (tripNumber: string) => {
