@@ -139,29 +139,42 @@ export default function OtherExpensesPage() {
         <CardHeader className="bg-secondary/5 pb-4 p-6 border-b border-border/50 flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-black text-foreground flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" /> Demandes de Dépenses
-             <div className="flex gap-2 items-center">
-            {selectedIds.size > 0 && (user?.role === 'PDG' || user?.role === 'CHEF_AGENCE') && (
+          </CardTitle>
+          <div className="flex gap-2 items-center">
+            {user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' ? (
               <div className="flex gap-2 mr-4">
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  className="h-9 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
-                  onClick={handleDeleteSelected}
-                  disabled={validatingAll}
+                  onClick={handleSelectAll}
+                  className="h-9 text-xs font-bold"
                 >
-                  <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                  {selectedIds.size > 0 && selectedIds.size === filteredExpenses.filter(r => r.id || r.clientId).length ? 'Tout décocher' : 'Tout cocher'}
                 </Button>
-                <Button 
-                  size="sm" 
-                  className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
-                  onClick={handleValidateSelected}
-                  disabled={validatingAll}
-                >
-                  <CheckCircle className="h-4 w-4 mr-1.5" /> 
-                  {validatingAll ? 'Validation...' : `Valider (${selectedIds.size})`}
-                </Button>
+                {selectedIds.size > 0 && (
+                  <>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-9 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                      onClick={handleDeleteSelected}
+                      disabled={validatingAll}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                      onClick={handleValidateSelected}
+                      disabled={validatingAll}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1.5" /> 
+                      {validatingAll ? 'Validation...' : `Valider (${selectedIds.size})`}
+                    </Button>
+                  </>
+                )}
               </div>
-            )}
+            ) : null}
             <Filter className="h-4 w-4 text-muted-foreground" />
             <select 
               value={filter} 
@@ -206,6 +219,7 @@ export default function OtherExpensesPage() {
                     </th>
                     <th className="px-6 py-4">Date & Agence</th>
                     <th className="px-6 py-4">Type & Description</th>
+                    <th className="px-6 py-4">Auteur</th>
                     <th className="px-6 py-4 text-right">Montant</th>
                     <th className="px-6 py-4">Statut</th>
                     <th className="px-6 py-4 text-right rounded-tr-xl">Actions</th>

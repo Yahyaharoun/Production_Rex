@@ -372,16 +372,28 @@ export default function WashingControlPage() {
               <FileText className="h-5 w-5 text-primary" />
               Historique des lavages ({washes.length} entrée{washes.length !== 1 ? 's' : ''})
             </CardTitle>
-            {canDelete && selectedIds.size > 0 && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
-                onClick={handleDeleteSelected}
-                disabled={deletingAll}
-              >
-                <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
-              </Button>
+            {canDelete && (
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSelectAll}
+                  className="h-8 text-xs font-bold"
+                >
+                  {selectedIds.size > 0 && selectedIds.size === washes.filter(r => r.id || r.clientId).length ? 'Tout décocher' : 'Tout cocher'}
+                </Button>
+                {selectedIds.size > 0 && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                    onClick={handleDeleteSelected}
+                    disabled={deletingAll}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                  </Button>
+                )}
+              </div>
             )}
           </CardHeader>
           <CardContent>

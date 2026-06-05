@@ -1010,12 +1010,17 @@ export default function BordereauxPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">{history.length} entrée(s)</span>
                 {canValidate && history.some(r => r.status !== 'VALIDATED') && (
-                  <>
-                    <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                      {selectedIds.size === history.filter(r => r.status !== 'VALIDATED').length && selectedIds.size > 0 ? 'Tout décocher' : 'Tout cocher'}
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleSelectAll}
+                      className="h-8 text-xs font-bold"
+                    >
+                      {selectedIds.size > 0 && selectedIds.size === history.filter(r => r.id).length ? 'Tout décocher' : 'Tout cocher'}
                     </Button>
-                    {selectedIds.size > 0 && (
-                      <div className="flex gap-2">
+                    {unvalidatedCount > 0 && selectedIds.size > 0 && (
+                      <>
                         <Button 
                           size="sm" 
                           variant="outline" 
@@ -1031,12 +1036,12 @@ export default function BordereauxPage() {
                           onClick={handleValidateSelected}
                           disabled={validatingAll}
                         >
-                          {validatingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
-                          Valider ({selectedIds.size})
+                          <CheckCircle className="h-4 w-4 mr-1.5" /> 
+                          {validatingAll ? 'Validation...' : `Valider (${selectedIds.size})`}
                         </Button>
-                      </div>
+                      </>
                     )}
-                  </>
+                  </div>
                 )}
                 <Button variant="ghost" size="sm" onClick={fetchHistory} disabled={loadingHistory}>
                   <RefreshCw className={`h-4 w-4 ${loadingHistory ? 'animate-spin' : ''}`} />
