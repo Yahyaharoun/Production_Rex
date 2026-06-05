@@ -281,19 +281,22 @@ export default function ReportsPage() {
   const exportPDF = async () => {
     setLoading(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
+      const htmlToImage = await import('html-to-image');
       const { jsPDF } = await import('jspdf');
 
       const element = reportRef.current;
       if (!element) throw new Error('Composant introuvable');
 
       toast.info('Génération du rapport PDF en cours...');
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
-      const imgData = canvas.toDataURL('image/png');
+      
+      // html-to-image contourne le bug oklch en utilisant des foreignObjects
+      const imgData = await htmlToImage.toPng(element, { pixelRatio: 2, cacheBust: true });
       
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const elWidth = element.offsetWidth;
+      const elHeight = element.offsetHeight;
+      const pdfHeight = (elHeight * pdfWidth) / elWidth;
       
       // Si le rapport est plus long qu'une page A4, on gère l'étirement ou on ajoute des pages,
       // Mais vu le design (1200px width par ~1600px height), ça tient parfaitement sur une page A4 portrait.
