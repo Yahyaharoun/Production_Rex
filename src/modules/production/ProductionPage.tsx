@@ -269,6 +269,21 @@ export default function ProductionPage() {
 
       const clientId = crypto.randomUUID();
 
+      let tripNumber = `PRX${new Date().toISOString().slice(2,10).replace(/-/g,'')}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`;
+      
+      if (navigator.onLine) {
+         try {
+           const { data: generatedTripNumber, error: rpcError } = await supabase.rpc('generate_trip_number', {
+             p_date: new Date().toISOString().split('T')[0]
+           });
+           if (!rpcError && generatedTripNumber) {
+             tripNumber = generatedTripNumber;
+           }
+         } catch (e) {
+           console.warn('Could not generate sequential trip number, using random PRX', e);
+         }
+      }
+
       // Payload complet (utiliser l'immatriculation normalisée de la BD)
       const baseImmat = matchedVehicle.immatriculation;
       const payload = {
@@ -285,7 +300,7 @@ export default function ProductionPage() {
         status: 'DRAFT',
         created_by: user?.id,
         date: new Date().toISOString().split('T')[0],
-        trip_number: `PRX${new Date().toISOString().slice(2,10).replace(/-/g,'')}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`,
+        trip_number: tripNumber,
         caissiere_name: user?.name || '',
         ligne: data.ligne,
         agence_id: agenceId,
@@ -702,15 +717,17 @@ export default function ProductionPage() {
 
             {/*  Capacité + Passagers  */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="totalSeats" className="font-semibold">
-                  Capacité totale (sièges)
-                </Label>
-                <Input id="totalSeats" type="number" min="1" {...register('totalSeats')} />
-                {errors.totalSeats && (
-                  <p className="text-xs text-destructive">{errors.totalSeats.message}</p>
-                )}
-              </div>
+              {(isAdmin || isChef) && (
+                <div className="space-y-2">
+                  <Label htmlFor="totalSeats" className="font-semibold">
+                    Capacité totale (sièges)
+                  </Label>
+                  <Input id="totalSeats" type="number" min="1" {...register('totalSeats')} />
+                  {errors.totalSeats && (
+                    <p className="text-xs text-destructive">{errors.totalSeats.message}</p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="passengersAtDeparture" className="font-semibold">
@@ -789,87 +806,91 @@ export default function ProductionPage() {
             </div>
 
             {/*  Récapitulatif recette automatique  */}
-            <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 space-y-3">
-              <div className="text-sm font-semibold text-primary flex items-center gap-2">
-                <Calculator className="h-4 w-4" />
-                Calcul automatique des recettes
-              </div>
+            {(isAdmin || isChef) && (
+              <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 space-y-3">
+                <div className="text-sm font-semibold text-primary flex items-center gap-2">
+                  <Calculator className="h-4 w-4" />
+                  Calcul automatique des recettes
+                </div>
 
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Type de production</span>
-                  <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${
-                    productionType === 'VIP'
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                      : 'bg-primary/10 text-primary'
-                  }`}>
-                    {productionType}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Type de production</span>
+                    <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${
+                      productionType === 'VIP'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        : 'bg-primary/10 text-primary'
+                    }`}>
+                      {productionType}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Prix par passager</span>
+                    <span className="font-semibold">{pricePerTicket.toLocaleString()} FCFA</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Nombre de passagers</span>
+                    <span className="font-semibold">{Number(passengersAtDeparture)}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center border-t border-primary/20 pt-3">
+                  <span className="font-bold">Recette brute</span>
+                  <span className="text-primary text-xl font-black">
+                    {revenue.toLocaleString()} FCFA
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Prix par passager</span>
-                  <span className="font-semibold">{pricePerTicket.toLocaleString()} FCFA</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Nombre de passagers</span>
-                  <span className="font-semibold">{Number(passengersAtDeparture)}</span>
-                </div>
+
+                <p className="text-xs text-muted-foreground italic">
+                  a️ Prix fixé automatiquement  Non modifiable par la caissière
+                </p>
               </div>
+            )}
 
-              <div className="flex justify-between items-center border-t border-primary/20 pt-3">
-                <span className="font-bold">Recette brute</span>
-                <span className="text-primary text-xl font-black">
-                  {revenue.toLocaleString()} FCFA
-                </span>
-              </div>
-
-              <p className="text-xs text-muted-foreground italic">
-                a️ Prix fixé automatiquement  Non modifiable par la caissière
-              </p>
-            </div>
-
-            {/*  Dépenses du trajet  */}
-            <div className="space-y-3">
-              <Label className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-                Dépenses du trajet (FCFA)
-              </Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { name: 'fuel' as const, label: 'Carburant' },
-                ].map(({ name, label }) => (
-                  <div key={name} className="space-y-1.5">
-                    <Label htmlFor={name} className="text-xs font-medium">{label}</Label>
-                    <Input id={name} type="number" min="0" placeholder="0" {...register(name)} />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/*  Récapitulatif net  */}
-            <div className={`rounded-xl p-4 border-2 transition-colors ${
-              netToDeposit >= 0
-                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
-                : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
-            }`}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">Dépenses totales</div>
-                  <div className="text-sm font-semibold text-destructive">
-                    - {totalExpenses.toLocaleString()} FCFA
+            {/*  Dépenses du trajet (caché pour les agents)  */}
+            {(isAdmin || isChef) && (
+              <>
+                <div className="space-y-3">
+                  <Label className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+                    Dépenses du trajet (FCFA)
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { name: 'fuel' as const, label: 'Carburant' },
+                    ].map(({ name, label }) => (
+                      <div key={name} className="space-y-1.5">
+                        <Label htmlFor={name} className="text-xs font-medium">{label}</Label>
+                        <Input id={name} type="number" min="0" placeholder="0" {...register(name)} />
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-muted-foreground mb-1">Net à verser</div>
-                  <div className={`text-2xl font-black ${
-                    netToDeposit >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-destructive'
-                  }`}>
-                    {netToDeposit.toLocaleString()} FCFA
+
+                {/*  Récapitulatif net  */}
+                <div className={`rounded-xl p-4 border-2 transition-colors ${
+                  netToDeposit >= 0
+                    ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
+                }`}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Dépenses totales</div>
+                      <div className="font-semibold">{Number(watchedFuel || 0).toLocaleString()} FCFA</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        Net à verser
+                      </div>
+                      <div className={`text-2xl font-black ${
+                        netToDeposit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {netToDeposit.toLocaleString()} FCFA
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
 
             {/*  Bouton d'enregistrement  */}
             <Button
