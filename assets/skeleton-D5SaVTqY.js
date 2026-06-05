@@ -1,0 +1,1 @@
+import{h as e,n as t}from"./index-CdBkRTSC.js";var n=e();function r({className:e,...r}){return(0,n.jsx)(`div`,{className:t(`animate-pulse rounded-md bg-muted/50`,e),...r})}export{r as t};
