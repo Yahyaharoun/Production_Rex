@@ -114,6 +114,14 @@ export default defineConfig({
     })
   ],
   base: '/',
+  server: {
+    headers: {
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

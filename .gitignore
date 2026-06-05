@@ -24,15 +24,27 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files (ne pas pousser sur GitHub)
+# Secrets & Environment (NEVER push to GitHub)
 .env
+.env.*
 .env.local
+.env.production
+.env.development
+.env.staging
 backend/.env
 
+# Vercel & CI
 .vercel
 push_*.ps1
 
-.vercel
-.env*
-Yahya-dev.github.io/
+# Sensitive scripts & reports
 audit-report.json
+job_log*.txt
+check_roles.js
+rewrite.cjs
+clean.cjs
+
+# Workspace folders
+Yahya-dev.github.io/
+node-v*/
+node.zip
