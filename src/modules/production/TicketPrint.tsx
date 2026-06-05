@@ -114,7 +114,7 @@ export function TicketPrint({ data, onClose, onPrint }: TicketPrintProps) {
           </div>
           <div class="divider" style="margin: 8px 0; border-top: 1px solid #eee;"></div>
           <div class="row">
-            <div class="row-label">👤 Caissière</div>
+            <div class="row-label">👤 Agent Production</div>
             <div class="row-value">${data.agentName}</div>
           </div>
           <div class="divider" style="margin: 8px 0; border-top: 1px solid #eee;"></div>
@@ -219,9 +219,9 @@ export function TicketPrint({ data, onClose, onPrint }: TicketPrintProps) {
                 <span className="font-bold text-slate-800">{data.vehicleImmat}</span>
               </div>
               <div className="border-t border-slate-100"></div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600 flex items-center gap-2"><span>👤</span> Caissière</span>
-                <span className="font-bold text-slate-800">{data.agentName}</span>
+              <div className="flex justify-between py-2 border-b border-dashed">
+                <span className="text-slate-500">Agent Production</span>
+                <span className="font-medium text-slate-800">{data.agentName}</span>
               </div>
               <div className="border-t border-slate-100"></div>
               <div className="flex justify-between items-center">

@@ -602,8 +602,8 @@ export default function ProductionPage() {
             <FileText className="h-7 w-7 text-primary" />
             Saisie de Production
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {user?.name} · {user?.role === 'CAISSIERE' ? 'AGENT PRODUCTION' : user?.role === 'AGENT_RECETTE' ? 'CAISSIÈRE' : user?.role?.replace('_', ' ')}
+          <p className="text-muted-foreground text-sm mt-1 uppercase">
+            {user?.name} · {user?.role === 'CAISSIERE' || user?.role === 'AGENT_RECETTE' ? 'AGENT PRODUCTION' : user?.role?.replace('_', ' ')}
           </p>
         </div>
         <Button
