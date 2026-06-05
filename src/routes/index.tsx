@@ -10,6 +10,7 @@ const DashboardPage = lazy(() => import('../modules/dashboard/DashboardPage'));
 const VehiclesPage = lazy(() => import('../modules/vehicles/VehiclesPage'));
 const DriversPage = lazy(() => import('../modules/drivers/DriversPage'));
 const ProductionPage = lazy(() => import('../modules/production/ProductionPage'));
+const BordereauxPage = lazy(() => import('../modules/bordereaux/BordereauxPage'));
 const ReportsPage = lazy(() => import('../modules/reports/ReportsPage'));
 const UsersPage = lazy(() => import('../modules/users/UsersPage'));
 
@@ -50,6 +51,7 @@ export const router = createHashRouter([
           },
           { path: 'drivers', element: <DriversPage /> },
           { path: 'production', element: <ProductionPage /> },
+          { path: 'bordereaux', element: <BordereauxPage /> },
           { path: 'fuel-expenses', element: <FuelExpensePage /> },
           { path: 'other-expenses', element: <OtherExpensesPage /> },
           { path: 'washing-control', element: <WashingControlPage /> },
