@@ -377,6 +377,40 @@ export default function ProductionPage() {
         const { error } = await supabase.from('productions').insert(sanitized);
         if (error) throw error;
 
+        // Synchronisation automatique du carburant
+        if (payload.expense_fuel > 0) {
+          const fuelPayload = {
+            vehicle_immat: baseImmat,
+            amount: payload.expense_fuel,
+            category: 'CARBURANT',
+            line_name: data.ligne,
+            notes: `Auto-généré depuis prod ${tripNumber}`,
+            agence_id: agenceId || null,
+            caissiere_name: payload.caissiere_name || null,
+            created_by: user?.id || null,
+            date: payload.date,
+          };
+          const { data: insertedFuel } = await supabase.from('fuel_expenses').insert(fuelPayload).select().single();
+          if (insertedFuel) {
+            await db.fuelExpenses.put({
+              clientId: insertedFuel.id,
+              id: insertedFuel.id,
+              date: payload.date,
+              vehicleImmat: baseImmat,
+              vehicle_immat: baseImmat,
+              lineName: data.ligne,
+              agenceId: agenceId || '',
+              category: 'CARBURANT',
+              amount: payload.expense_fuel,
+              notes: fuelPayload.notes,
+              caissiere_name: payload.caissiere_name,
+              created_by: user?.id,
+              syncStatus: 'SYNCED',
+              createdAt: Date.now(),
+            });
+          }
+        }
+
         // Aussi sauvegarder localement pour que ce soit visible hors-ligne
         await db.productions.put({
           clientId,
@@ -444,6 +478,48 @@ export default function ProductionPage() {
           retries: 0,
           createdAt: new Date().toISOString(),
         });
+
+        // Synchronisation automatique du carburant hors ligne
+        if (payload.expense_fuel > 0) {
+          const fuelClientId = crypto.randomUUID();
+          const fuelPayload = {
+            vehicle_immat: baseImmat,
+            amount: payload.expense_fuel,
+            category: 'CARBURANT',
+            line_name: data.ligne,
+            notes: `Auto-généré depuis prod ${tripNumber}`,
+            agence_id: agenceId || null,
+            caissiere_name: payload.caissiere_name || null,
+            created_by: user?.id || null,
+            date: payload.date,
+          };
+          
+          await db.fuelExpenses.put({
+            clientId: fuelClientId,
+            date: payload.date,
+            vehicleImmat: baseImmat,
+            vehicle_immat: baseImmat,
+            lineName: data.ligne,
+            agenceId: agenceId || '',
+            category: 'CARBURANT',
+            amount: payload.expense_fuel,
+            notes: fuelPayload.notes,
+            caissiere_name: payload.caissiere_name,
+            created_by: user?.id,
+            syncStatus: 'PENDING',
+            createdAt: Date.now(),
+          });
+
+          await db.syncQueue.add({
+            clientId: fuelClientId,
+            table: 'fuel_expenses',
+            action: 'INSERT',
+            payload: fuelPayload,
+            status: 'PENDING',
+            retries: 0,
+            createdAt: new Date().toISOString(),
+          });
+        }
 
         toast.success('Production sauvegardée localement', {
           description: `⚡ Hors-ligne. Sera synchronisée automatiquement dès que vous aurez internet.`,
@@ -752,7 +828,7 @@ export default function ProductionPage() {
 
             {/*  Capacité + Passagers  */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {(isAdmin || isChef) && (
+              {(isAdmin || isChef || user?.role === 'CAISSIERE') && (
                 <div className="space-y-2">
                   <Label htmlFor="totalSeats" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                     Capacité totale (sièges)
@@ -923,7 +999,7 @@ export default function ProductionPage() {
                   <div className="flex justify-between items-center">
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Dépenses totales</div>
-                      <div className="font-semibold">{Number(watchedFuel || 0).toLocaleString()} FCFA</div>
+                      <div className="font-semibold">{Number(fuel || 0).toLocaleString()} FCFA</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
