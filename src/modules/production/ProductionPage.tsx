@@ -895,8 +895,8 @@ export default function ProductionPage() {
               </div>
             </div>
 
-            {/*  Dépenses du trajet (caché pour les agents)  */}
-            {(isAdmin || isChef) && (
+            {/*  Dépenses du trajet (affiché pour admin, chef et caissière)  */}
+            {(isAdmin || isChef || user?.role === 'CAISSIERE') && (
               <>
                 <div className="space-y-3 mt-6">
                   <Label className="font-semibold text-sm text-slate-500 uppercase tracking-wider">
