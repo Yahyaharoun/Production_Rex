@@ -187,7 +187,6 @@ export default function OtherExpensesPage() {
               <option value="REJECTED">Rejetées</option>
             </select>
           </div>
-          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
