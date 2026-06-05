@@ -285,6 +285,7 @@ export default function ProductionPage() {
         status: 'DRAFT',
         created_by: user?.id,
         date: new Date().toISOString().split('T')[0],
+        trip_number: `PRX${new Date().toISOString().slice(2,10).replace(/-/g,'')}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`,
         caissiere_name: user?.name || '',
         ligne: data.ligne,
         agence_id: agenceId,
@@ -310,6 +311,7 @@ export default function ProductionPage() {
           price_per_ticket: pricePerTicket,
           status: 'TICKET_ONLY',
           date: payload.date,
+          trip_number: payload.trip_number,
           caissiere_name: payload.caissiere_name,
           ligne: data.ligne,
           agence_id: agenceId || '',
@@ -317,6 +319,23 @@ export default function ProductionPage() {
           synced: true, // true pour ne pas déclencher la file d'attente
         };
         await db.productions.put(localEntry);
+        setTicketData({
+          id: localEntry.clientId,
+          ticketNumber: localEntry.clientId.split('-')[0].toUpperCase(),
+          date: new Date().toLocaleDateString('fr-FR'),
+          time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          tripNumber: payload.trip_number,
+          vehicleImmat: payload.immatriculation,
+          driverName: payload.driver_name,
+          passengers: payload.passengers_at_departure,
+          revenue: calculatedRevenue,
+          agentName: user?.name || '',
+          ligne: data.ligne,
+          productionType: data.productionType
+        });
+
+        toast.success('Production enregistrée !', {
+        });
         toast.success('Ticket généré !', {
           description: `Bordereau prêt pour l'impression.`,
         });
@@ -407,13 +426,15 @@ export default function ProductionPage() {
       await fetchHistory();
       setTimeout(() => setSaved(false), 3000);
 
-      // Afficher le ticket thermique uniquement pour les agents de recette
-      if (user?.role === 'AGENT_RECETTE') {
+      // Afficher le ticket thermique pour l'Agent Production
+      if (user?.role === 'CAISSIERE' || user?.role === 'AGENT_RECETTE') {
         setTicketData({
+          id: clientId, // we don't have the real DB ID if online without returning it, so we use clientId
           companyName: 'PRODUCTION REX',
-          ticketNumber: clientId,
+          ticketNumber: clientId.split('-')[0].toUpperCase(),
           date: new Date().toLocaleDateString('fr-FR'),
           time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          tripNumber: payload.trip_number,
           vehicleImmat: payload.immatriculation,
           driverName: data.driverName,
           passengers: data.passengersAtDeparture,
@@ -500,6 +521,38 @@ export default function ProductionPage() {
     fetchHistory();
   };
 
+  const handlePrintDone = async (tripNumber: string) => {
+    try {
+      if (navigator.onLine && tripNumber) {
+        await supabase
+          .from('productions')
+          .update({ departure_time: new Date().toISOString() })
+          .eq('trip_number', tripNumber)
+          .is('departure_time', null);
+      }
+    } catch (err) {
+      console.error('Erreur mise à jour heure de départ', err);
+    }
+  };
+
+  const handleValidateArrival = async (id: string) => {
+    try {
+      if (!navigator.onLine) {
+         toast.error("Impossible de valider l'arrivée hors ligne.");
+         return;
+      }
+      const { error } = await supabase
+        .from('productions')
+        .update({ arrival_time: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      toast.success('Arrivée validée avec succès !');
+      fetchHistory();
+    } catch (err: any) {
+      toast.error("Erreur", { description: err.message });
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-8">
       {/* Ticket thermique */}
@@ -507,6 +560,9 @@ export default function ProductionPage() {
         <TicketPrint
           data={ticketData}
           onClose={() => setTicketData(null)}
+          onPrint={() => {
+            if (ticketData.tripNumber) handlePrintDone(ticketData.tripNumber);
+          }}
         />
       )}
 
@@ -518,7 +574,7 @@ export default function ProductionPage() {
             Saisie de Production
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {user?.name} · {user?.role?.replace('_', ' ')}
+            {user?.name} · {user?.role === 'CAISSIERE' ? 'AGENT PRODUCTION' : user?.role === 'AGENT_RECETTE' ? 'CAISSIÈRE' : user?.role?.replace('_', ' ')}
           </p>
         </div>
         <Button
@@ -942,11 +998,23 @@ export default function ProductionPage() {
                       <div className="font-black text-sm text-emerald-600 dark:text-emerald-400">
                         {(rec.net_to_deposit || 0).toLocaleString()} FCFA
                       </div>
-                      <div className="text-xs text-muted-foreground">net versé</div>
+                      <div className="text-[10px] text-muted-foreground mb-1">net versé</div>
+                      {(isAdmin || isChef) && (
+                        <div className="text-[10px] text-left border-t border-slate-200 pt-1 mt-1">
+                          <div className="text-slate-500">Départ: <span className="font-bold text-slate-700">{rec.departure_time ? new Date(rec.departure_time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></div>
+                          <div className="text-slate-500">Arrivée: <span className="font-bold text-slate-700">{rec.arrival_time ? new Date(rec.arrival_time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></div>
+                        </div>
+                      )}
                     </div>
 
-                    {canValidate && (
-                      <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 items-end">
+                      {user?.role === 'AGENT_RECETTE' && !rec.arrival_time && (
+                         <Button size="sm" variant="outline" className="h-7 text-[10px] border-emerald-500 text-emerald-600 hover:bg-emerald-50" onClick={() => handleValidateArrival(rec.id)}>
+                            Valider Arrivée
+                         </Button>
+                      )}
+                      {canValidate && (
+                        <div className="flex gap-1 justify-end mt-1">
                         {rec.status !== 'VALIDATED' && (
                           <Button
                             variant="ghost"
@@ -970,7 +1038,8 @@ export default function ProductionPage() {
                       </div>
                     )}
                   </div>
-                ))}
+                </div>
+              ))}
               </div>
             )}
           </CardContent>
