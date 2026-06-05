@@ -601,7 +601,7 @@ export default function BordereauxPage() {
 
   const handleSelectAll = () => {
     const visibleRecords = history.filter(r => r.id);
-    if (selectedIds.size === visibleRecords.length) {
+    if (selectedIds.size === visibleRecords.length && visibleRecords.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(visibleRecords.map(r => r.id)));
@@ -1033,38 +1033,41 @@ export default function BordereauxPage() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <History className="h-5 w-5" /> Historique des Voyages </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-muted-foreground">{history.length} entrée(s)</span>
-                {canValidate && history.some(r => r.status !== 'VALIDATED') && (
+                        {(canValidate || canDelete) && history.length > 0 && (
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={handleSelectAll}
-                      className="h-8 text-xs font-bold"
                     >
-                      {selectedIds.size > 0 && selectedIds.size === history.filter(r => r.id).length ? 'Tout décocher' : 'Tout cocher'}
+                      {selectedIds.size > 0 && selectedIds.size === history.length ? 'Tout décocher' : 'Tout cocher'}
                     </Button>
-                    {unvalidatedCount > 0 && selectedIds.size > 0 && (
-                      <>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
-                          onClick={handleDeleteSelected}
-                          disabled={validatingAll}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
-                          onClick={handleValidateSelected}
-                          disabled={validatingAll}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1.5" /> 
-                          {validatingAll ? 'Validation...' : `Valider (${selectedIds.size})`}
-                        </Button>
-                      </>
+                    
+                    {selectedIds.size > 0 && (
+                      <div className="flex gap-2">
+                        {canDelete && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                            onClick={() => handleDeleteSelected()}
+                            disabled={validatingAll}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                          </Button>
+                        )}
+                        {canValidate && history.some(r => selectedIds.has(r.id) && r.status !== 'BORDEREAU_TERMINE') && (
+                          <Button 
+                            size="sm" 
+                            className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                            onClick={handleValidateSelected}
+                            disabled={validatingAll}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1.5" /> 
+                            {validatingAll ? 'Validation...' : `Valider (${history.filter(r => selectedIds.has(r.id) && r.status !== 'BORDEREAU_TERMINE').length})`}
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1099,16 +1102,16 @@ export default function BordereauxPage() {
                     }`}
                   >
                     {/* Checkbox for selection */}
-                    {canValidate && rec.status !== 'VALIDATED' && (
+                    {(canDelete || (canValidate && rec.status !== 'BORDEREAU_TERMINE')) && (
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 cursor-pointer flex-shrink-0"
+                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 cursor-pointer flex-shrink-0 mt-1"
                         checked={selectedIds.has(rec.id)}
                         onChange={() => handleToggleSelect(rec.id)}
                       />
                     )}
-                    {canValidate && rec.status === 'BORDEREAU_TERMINE' && (
-                      <div className="h-4 w-4 flex-shrink-0" />
+                    {!canDelete && canValidate && rec.status === 'BORDEREAU_TERMINE' && (
+                      <div className="h-4 w-4 flex-shrink-0 mt-1" />
                     )}
 
                     <div className="flex-1 min-w-0">

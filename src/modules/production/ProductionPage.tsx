@@ -616,7 +616,7 @@ export default function ProductionPage() {
 
   const handleSelectAll = () => {
     const visibleRecords = history.filter(r => r.id);
-    if (selectedIds.size === visibleRecords.length) {
+    if (selectedIds.size === visibleRecords.length && visibleRecords.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(visibleRecords.map(r => r.id)));
@@ -1100,31 +1100,35 @@ export default function ProductionPage() {
               </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">{history.length} entrée(s)</span>
-                {canValidate && history.some(r => r.status !== 'VALIDATED') && (
+                {(canValidate || canDelete) && history.length > 0 && (
                   <>
                     <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                      {selectedIds.size === history.filter(r => r.status !== 'VALIDATED').length && selectedIds.size > 0 ? 'Tout décocher' : 'Tout cocher'}
+                      {selectedIds.size === history.length && selectedIds.size > 0 ? 'Tout décocher' : 'Tout cocher'}
                     </Button>
                     {selectedIds.size > 0 && (
                       <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
-                          onClick={handleDeleteSelected}
-                          disabled={validatingAll}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer la sélection ({selectedIds.size})
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
-                          onClick={handleValidateSelected}
-                          disabled={validatingAll}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1.5" /> 
-                          {validatingAll ? 'Validation...' : `Valider la sélection (${selectedIds.size})`}
-                        </Button>
+                        {canDelete && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                            onClick={handleDeleteSelected}
+                            disabled={deletingAll || validatingAll}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer ({selectedIds.size})
+                          </Button>
+                        )}
+                        {canValidate && history.some(r => selectedIds.has(r.id) && r.status !== 'VALIDATED') && (
+                          <Button 
+                            size="sm" 
+                            className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                            onClick={handleValidateSelected}
+                            disabled={validatingAll}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1.5" /> 
+                            {validatingAll ? 'Validation...' : `Valider (${history.filter(r => selectedIds.has(r.id) && r.status !== 'VALIDATED').length})`}
+                          </Button>
+                        )}
                       </div>
                     )}
                   </>
@@ -1160,7 +1164,7 @@ export default function ProductionPage() {
                     }`}
                   >
                     {/* Checkbox for selection */}
-                    {canValidate && rec.status !== 'VALIDATED' && (
+                    {(canDelete || (canValidate && rec.status !== 'VALIDATED')) && (
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-gray-300 text-emerald-600 cursor-pointer flex-shrink-0"
@@ -1168,7 +1172,7 @@ export default function ProductionPage() {
                         onChange={() => handleToggleSelect(rec.id)}
                       />
                     )}
-                    {canValidate && rec.status === 'VALIDATED' && (
+                    {!canDelete && canValidate && rec.status === 'VALIDATED' && (
                       <div className="h-4 w-4 flex-shrink-0" />
                     )}
 
