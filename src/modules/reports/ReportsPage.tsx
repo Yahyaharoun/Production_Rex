@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { PrintableReport } from './PrintableReport';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -69,6 +70,7 @@ export default function ReportsPage() {
   const [dateEnd, setDateEnd] = useState('');
   const [search, setSearch] = useState('');
   const [agenceFilter, setAgenceFilter] = useState('');
+  const reportRef = useRef<HTMLDivElement>(null);
 
   //  Chargement des agences 
   useEffect(() => {
@@ -95,7 +97,7 @@ export default function ReportsPage() {
       let qWash = supabase.from('washes').select('*');
       let qOther = supabase.from('other_expenses').select('*');
 
-      if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+      if (!isAdmin && !isChef && user?.lineIds && user.lineIds.length > 0) {
         query = query.in('agence_id', user.lineIds);
         qFuel = qFuel.in('agence_id', user.lineIds);
         qWash = qWash.in('agence_id', user.lineIds);
@@ -275,163 +277,30 @@ export default function ReportsPage() {
   const globalRevenue = statsByAgence.reduce((s, a) => s + a.revenue, 0);
   const globalNet = statsByAgence.reduce((s, a) => s + a.net, 0);
 
-  //  Export PDF simplifié (A4, une page) 
+  //  Export PDF haute fidélité (Capture React -> PDF) 
   const exportPDF = async () => {
     setLoading(true);
     try {
+      const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
 
-      const periodLabels: Record<ReportPeriod, string> = {
-        DAILY: "Aujourd'hui – " + new Date().toLocaleDateString('fr-FR'),
-        WEEKLY: '7 derniers jours',
-        MONTHLY: '30 jours',
-        YEARLY: 'Cette année',
-        CUSTOM: `${dateStart} – ${dateEnd}`,
-      };
+      const element = reportRef.current;
+      if (!element) throw new Error('Composant introuvable');
 
-      const exportDate = new Date().toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      });
-
-      const drawHeader = (title: string) => {
-        doc.setFillColor(6, 95, 70);
-        doc.rect(0, 0, 297, 32, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(20);
-        doc.setFont('helvetica', 'bold');
-        doc.text('PRODUCTION REX', 14, 14);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.text(title, 14, 22);
-        doc.setFontSize(9);
-        doc.text(
-          `Exporté le : ${exportDate}  |  Période : ${periodLabels[period]}`,
-          14,
-          29,
-        );
-        doc.setTextColor(0, 0, 0);
-      };
-
-      const drawTable = (
-        headers: string[],
-        colWidths: number[],
-        rows: string[][],
-        startY: number,
-      ): number => {
-        let y = startY;
-        let x = 14;
-
-        doc.setFillColor(6, 95, 70);
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8.5);
-        doc.setFont('helvetica', 'bold');
-        headers.forEach((h, i) => {
-          doc.rect(x, y, colWidths[i], 8, 'F');
-          doc.text(h, x + 2, y + 5.5);
-          x += colWidths[i];
-        });
-        y += 8;
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        rows.forEach((row, ri) => {
-          if (ri % 2 === 0) {
-            doc.setFillColor(240, 255, 248);
-            x = 14;
-            row.forEach((_c, i) => {
-              doc.rect(x, y, colWidths[i], 7, 'F');
-              x += colWidths[i];
-            });
-          }
-          x = 14;
-          row.forEach((cell, i) => {
-            doc.rect(x, y, colWidths[i], 7);
-            const truncated = (cell || '-')
-              .toString()
-              .substring(0, Math.floor(colWidths[i] / 2.2));
-            doc.text(truncated, x + 2, y + 4.5);
-            x += colWidths[i];
-          });
-          y += 7;
-          if (y > 188) {
-            doc.addPage();
-            y = 15;
-          }
-        });
-        return y;
-      };
-
-      drawHeader('Rapport Synthétique');
+      toast.info('Génération du rapport PDF en cours...');
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL('image/png');
       
-      const tableHeaders = [
-        'Agence/Ligne',
-        'Voyages (V/C)',
-        'Total Voy.',
-        'Autres Dép.',
-        'Carburant',
-        'Lavage',
-        'Tot. Dépenses',
-        'Recette Brute',
-        'Net à verser'
-      ];
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
-      // Total width: ~275 (A4 landscape is 297mm)
-      const colWidths = [50, 25, 20, 25, 30, 25, 30, 35, 35];
-      
-      const tableRows = statsByAgence.map(a => [
-        a.name,
-        `${a.vipCount}V / ${a.classiqueCount}C`,
-        a.totalCount.toString(),
-        fmtCompact(a.otherExpense),
-        fmtCompact(a.fuelExpense),
-        fmtCompact(a.washExpense),
-        fmtCompact(a.totalExpense),
-        fmtCompact(a.revenue),
-        fmtCompact(a.net)
-      ]);
-      
-      let nextY = drawTable(tableHeaders, colWidths, tableRows, 45);
+      // Si le rapport est plus long qu'une page A4, on gère l'étirement ou on ajoute des pages,
+      // Mais vu le design (1200px width par ~1600px height), ça tient parfaitement sur une page A4 portrait.
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-      if (nextY > 150) {
-        doc.addPage();
-        nextY = 20;
-      } else {
-        nextY += 15;
-      }
-
-      // Summary
-      doc.setFillColor(6, 95, 70);
-      doc.rect(14, nextY, 120, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.text('RÉSUMÉ GLOBAL', 16, nextY + 5.5);
-      
-      doc.setTextColor(0, 0, 0);
-      nextY += 12;
-      const summaryRows = [
-        ['Recette Brute Totale', fmt(globalRevenue)],
-        ['Carburant Total', fmt(globalFuel)],
-        ['Total Dépenses', fmt(globalExpense)],
-        ['Net à verser Total', fmt(globalNet)],
-      ];
-      drawTable(['Métrique', 'Valeur'], [60, 60], summaryRows, nextY);
-
-      const totalPages = (doc as any).internal.getNumberOfPages();
-      for (let p = 1; p <= totalPages; p++) {
-        doc.setPage(p);
-        doc.setFontSize(7);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Page ${p} / ${totalPages}  —  Production Rex`, 14, 202);
-      }
-
-      doc.save(
-        `rapport-rex-${period.toLowerCase()}-${new Date()
-          .toISOString()
-          .split('T')[0]}.pdf`,
+      pdf.save(
+        `rapport-rex-${period.toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`
       );
       toast.success('Rapport PDF exporté avec succès !');
     } catch (err: unknown) {
@@ -832,7 +701,27 @@ export default function ReportsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Rendu invisible pour la capture PDF */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', opacity: 0, zIndex: -1 }}>
+        <PrintableReport
+          ref={reportRef}
+          periodLabel={PERIODS.find(p => p.key === period)?.label || ''}
+          generatedBy={user?.name || user?.email || 'Admin'}
+          statsByAgence={statsByAgence}
+          globalRevenue={globalRevenue}
+          globalExpense={globalExpense}
+          globalNet={globalNet}
+          globalFuel={globalFuel}
+          globalWash={globalWash}
+          globalOther={globalOther}
+          totalTickets={statsByAgence.reduce((s, a) => s + a.totalCount, 0)}
+          totalVoyages={statsByAgence.reduce((s, a) => s + a.totalCount, 0)}
+          fuelRecords={fuelRecords}
+          washRecords={washRecords}
+          otherRecords={otherRecords}
+        />
+      </div>
     </div>
   );
 }
-
