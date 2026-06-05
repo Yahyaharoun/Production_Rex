@@ -230,6 +230,20 @@ export default function ProductionPage() {
     fetchAgencies();
     fetchHistory();
     fetchVehicles();
+
+    // Abonnement temps réel
+    if (navigator.onLine) {
+      const channel = supabase
+        .channel('public:productions')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'productions' }, () => {
+          fetchHistory();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   const watchedImmat = useWatch({ control, name: 'immatriculation' });
@@ -606,15 +620,18 @@ export default function ProductionPage() {
       </div>
 
       {/*  Formulaire  */}
-      <Card className="shadow-md border-0 bg-card">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
-            Nouvelle Production
-          </CardTitle>
-          <CardDescription>
-            Le tarif est calculé <strong>automatiquement</strong> selon le type de production  la caissière ne peut pas modifier le prix.
-          </CardDescription>
+      <Card className="shadow-none border border-slate-100 bg-white rounded-xl overflow-hidden">
+        <CardHeader className="pb-4 flex flex-row items-center justify-between border-b border-slate-50 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-emerald-600" />
+            <CardTitle className="text-sm font-bold text-emerald-700 tracking-wide uppercase">
+              Nouvelle Production
+            </CardTitle>
+          </div>
+          <div className="text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-md flex items-center gap-1.5 font-medium">
+            <Calculator className="h-3.5 w-3.5" />
+            Le tarif est calculé automatiquement selon le type de production.
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -622,8 +639,7 @@ export default function ProductionPage() {
 
             {/*  Ligne / Agence  */}
             <div className="space-y-2">
-              <Label htmlFor="ligne" className="flex items-center gap-1.5 font-semibold">
-                <MapPin className="h-4 w-4 text-primary" />
+              <Label htmlFor="ligne" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                 Ligne / Agence *
               </Label>
 
@@ -676,19 +692,34 @@ export default function ProductionPage() {
             </div>
 
             {/*  Immatriculation + Chauffeur  */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="immatriculation" className="flex items-center gap-1.5 font-semibold">
-                  <Bus className="h-4 w-4 text-primary" />
+                <Label htmlFor="immatriculation" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                   Immatriculation *
                 </Label>
-                <Input
-                  id="immatriculation"
-                  placeholder="ex: LT-1234-A"
-                  className="uppercase font-mono"
-                  list="vehicles-list"
-                  {...register('immatriculation')}
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <Bus className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <Input
+                    id="immatriculation"
+                    placeholder="Ex: LT-1234-A"
+                    className="uppercase font-mono pl-9 pr-8"
+                    list="vehicles-list"
+                    {...register('immatriculation')}
+                  />
+                  {watchedImmat && (
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-slate-600"
+                      onClick={() => setValue('immatriculation', '', { shouldValidate: true })}
+                    >
+                      <div className="h-4 w-4 rounded-full bg-slate-200 flex items-center justify-center text-white font-bold text-[10px]">
+                        x
+                      </div>
+                    </button>
+                  )}
+                </div>
                 <datalist id="vehicles-list">
                   {vehicles.map(v => (
                     <option key={v.id} value={v.immatriculation} />
@@ -702,11 +733,15 @@ export default function ProductionPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="driverName" className="flex items-center gap-1.5 font-semibold">
-                  <User className="h-4 w-4 text-primary" />
+                <Label htmlFor="driverName" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                   Nom du Chauffeur *
                 </Label>
-                <Input id="driverName" placeholder="Nom complet du chauffeur" {...register('driverName')} />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <User className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <Input id="driverName" placeholder="Nom complet du chauffeur" className="pl-9" {...register('driverName')} />
+                </div>
                 {errors.driverName && (
                   <p className="text-xs text-destructive flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" /> {errors.driverName.message}
@@ -716,10 +751,10 @@ export default function ProductionPage() {
             </div>
 
             {/*  Capacité + Passagers  */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {(isAdmin || isChef) && (
                 <div className="space-y-2">
-                  <Label htmlFor="totalSeats" className="font-semibold">
+                  <Label htmlFor="totalSeats" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                     Capacité totale (sièges)
                   </Label>
                   <Input id="totalSeats" type="number" min="1" {...register('totalSeats')} />
@@ -730,16 +765,40 @@ export default function ProductionPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="passengersAtDeparture" className="font-semibold">
+                <Label htmlFor="passengersAtDeparture" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                   Passagers au départ *
                 </Label>
-                <Input
-                  id="passengersAtDeparture"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  {...register('passengersAtDeparture')}
-                />
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <User className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <Input
+                      id="passengersAtDeparture"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      className="pl-9"
+                      {...register('passengersAtDeparture')}
+                    />
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="h-10 w-10 flex items-center justify-center rounded-md border border-slate-200 bg-white text-emerald-600 hover:bg-slate-50 transition-colors"
+                      onClick={() => setValue('passengersAtDeparture', Math.max(0, passengersAtDeparture - 1), { shouldValidate: true })}
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      className="h-10 w-10 flex items-center justify-center rounded-md border border-slate-200 bg-white text-emerald-600 hover:bg-slate-50 transition-colors"
+                      onClick={() => setValue('passengersAtDeparture', passengersAtDeparture + 1, { shouldValidate: true })}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
                 {errors.passengersAtDeparture && (
                   <p className="text-xs text-destructive">{errors.passengersAtDeparture.message}</p>
                 )}
@@ -748,53 +807,57 @@ export default function ProductionPage() {
 
             {/*  Type de production (choix principal)  */}
             <div className="space-y-3">
-              <Label className="flex items-center gap-1.5 font-semibold">
-                <Star className="h-4 w-4 text-primary" />
+              <Label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
                 Type de Production *
               </Label>
-              <p className="text-xs text-muted-foreground -mt-1">
-                Le prix est fixé automatiquement selon le type choisi. Non modifiable.
-              </p>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 {/* Classique */}
                 <label
-                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                  className={`relative flex flex-col items-center justify-center p-6 rounded-xl border cursor-pointer transition-all select-none ${
                     productionType === 'CLASSIQUE'
-                      ? 'border-primary bg-primary/5 shadow-md scale-[1.02]'
-                      : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                      ? 'border-emerald-600 bg-emerald-50/30 ring-1 ring-emerald-600'
+                      : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
                   }`}
                 >
                   <input type="radio" value="CLASSIQUE" {...register('productionType')} className="sr-only" />
-                  <span className="text-3xl">xaR</span>
-                  <div className="text-center">
-                    <div className="font-bold text-sm tracking-wide">CLASSIQUE</div>
-                    <div className="text-primary font-extrabold text-xl mt-0.5">{getPrice(ligne || '', 'CLASSIQUE')} FCFA</div>
-                    <div className="text-xs text-muted-foreground">par passager</div>
+                  
+                  <div className={`absolute top-4 left-4 h-4 w-4 rounded-full border flex items-center justify-center ${
+                    productionType === 'CLASSIQUE' ? 'border-emerald-600' : 'border-slate-300'
+                  }`}>
+                    {productionType === 'CLASSIQUE' && <div className="h-2 w-2 rounded-full bg-emerald-600" />}
                   </div>
-                  {productionType === 'CLASSIQUE' && (
-                    <CheckCircle className="absolute top-2 right-2 h-5 w-5 text-primary fill-primary/10" />
-                  )}
+
+                  <span className="text-3xl text-emerald-800 font-medium mb-2">xaR</span>
+                  <div className="text-center">
+                    <div className="font-bold text-sm tracking-wide text-slate-800">CLASSIQUE</div>
+                    <div className="text-emerald-600 font-extrabold text-xl mt-1">{getPrice(ligne || '', 'CLASSIQUE')} FCFA</div>
+                    <div className="text-xs text-slate-500 mt-0.5">par passager</div>
+                  </div>
                 </label>
 
                 {/* VIP */}
                 <label
-                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                  className={`relative flex flex-col items-center justify-center p-6 rounded-xl border cursor-pointer transition-all select-none ${
                     productionType === 'VIP'
-                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20 shadow-md scale-[1.02]'
-                      : 'border-border hover:border-amber-400 hover:bg-muted/50'
+                      ? 'border-emerald-600 bg-emerald-50/30 ring-1 ring-emerald-600'
+                      : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
                   }`}
                 >
                   <input type="radio" value="VIP" {...register('productionType')} className="sr-only" />
-                  <span className="text-3xl">⭐</span>
-                  <div className="text-center">
-                    <div className="font-bold text-sm tracking-wide">VIP</div>
-                    <div className="text-amber-500 font-extrabold text-xl mt-0.5">{getPrice(ligne || '', 'VIP')} FCFA</div>
-                    <div className="text-xs text-muted-foreground">par passager</div>
+                  
+                  <div className={`absolute top-4 left-4 h-4 w-4 rounded-full border flex items-center justify-center ${
+                    productionType === 'VIP' ? 'border-emerald-600' : 'border-slate-300'
+                  }`}>
+                    {productionType === 'VIP' && <div className="h-2 w-2 rounded-full bg-emerald-600" />}
                   </div>
-                  {productionType === 'VIP' && (
-                    <CheckCircle className="absolute top-2 right-2 h-5 w-5 text-amber-500 fill-amber-100" />
-                  )}
+
+                  <span className="text-3xl mb-2">⭐</span>
+                  <div className="text-center">
+                    <div className="font-bold text-sm tracking-wide text-slate-800">VIP</div>
+                    <div className="text-amber-500 font-extrabold text-xl mt-1">{getPrice(ligne || '', 'VIP')} FCFA</div>
+                    <div className="text-xs text-slate-500 mt-0.5">par passager</div>
+                  </div>
                 </label>
               </div>
 
@@ -805,53 +868,38 @@ export default function ProductionPage() {
               )}
             </div>
 
-            {/*  Récapitulatif recette automatique  */}
-            {(isAdmin || isChef) && (
-              <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4 space-y-3">
-                <div className="text-sm font-semibold text-primary flex items-center gap-2">
-                  <Calculator className="h-4 w-4" />
-                  Calcul automatique des recettes
+            {/* RÉSUMÉ */}
+            <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden mt-6">
+              <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                  <FileText className="h-4 w-4" />
+                  RÉSUMÉ
                 </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Type de production</span>
-                    <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${
-                      productionType === 'VIP'
-                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                        : 'bg-primary/10 text-primary'
-                    }`}>
-                      {productionType}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Prix par passager</span>
-                    <span className="font-semibold">{pricePerTicket.toLocaleString()} FCFA</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Nombre de passagers</span>
-                    <span className="font-semibold">{Number(passengersAtDeparture)}</span>
-                  </div>
+                <div className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-md text-xs font-bold uppercase">
+                  {productionType} - {pricePerTicket} FCFA
                 </div>
-
-                <div className="flex justify-between items-center border-t border-primary/20 pt-3">
-                  <span className="font-bold">Recette brute</span>
-                  <span className="text-primary text-xl font-black">
-                    {revenue.toLocaleString()} FCFA
-                  </span>
-                </div>
-
-                <p className="text-xs text-muted-foreground italic">
-                  a️ Prix fixé automatiquement  Non modifiable par la caissière
-                </p>
               </div>
-            )}
+              <div className="p-4 flex justify-between items-end">
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Passagers</div>
+                  <div className="font-bold text-xl text-slate-800">{Number(passengersAtDeparture)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Tarif par passager</div>
+                  <div className="font-bold text-xl text-slate-800">{pricePerTicket} FCFA</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500 font-bold mb-1">RECETTE TOTALE</div>
+                  <div className="font-black text-2xl text-emerald-600">{revenue.toLocaleString()} FCFA</div>
+                </div>
+              </div>
+            </div>
 
             {/*  Dépenses du trajet (caché pour les agents)  */}
             {(isAdmin || isChef) && (
               <>
-                <div className="space-y-3">
-                  <Label className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+                <div className="space-y-3 mt-6">
+                  <Label className="font-semibold text-sm text-slate-500 uppercase tracking-wider">
                     Dépenses du trajet (FCFA)
                   </Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -867,22 +915,22 @@ export default function ProductionPage() {
                 </div>
 
                 {/*  Récapitulatif net  */}
-                <div className={`rounded-xl p-4 border-2 transition-colors ${
+                <div className={`rounded-xl p-4 border transition-colors mt-6 ${
                   netToDeposit >= 0
-                    ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
-                    : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-red-50 border-red-200'
                 }`}>
                   <div className="flex justify-between items-center">
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">Dépenses totales</div>
+                      <div className="text-xs text-slate-500 mb-1">Dépenses totales</div>
                       <div className="font-semibold">{Number(watchedFuel || 0).toLocaleString()} FCFA</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                         Net à verser
                       </div>
                       <div className={`text-2xl font-black ${
-                        netToDeposit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                        netToDeposit >= 0 ? 'text-emerald-600' : 'text-red-600'
                       }`}>
                         {netToDeposit.toLocaleString()} FCFA
                       </div>
@@ -895,17 +943,26 @@ export default function ProductionPage() {
             {/*  Bouton d'enregistrement  */}
             <Button
               type="submit"
-              disabled={isSubmitting || agenciesLoading}
-              className="w-full h-12 text-base font-bold shadow-md"
+              disabled={isSubmitting || !!agenciesError}
+              className="w-full h-14 mt-8 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-lg rounded-xl shadow-sm border-b-4 border-emerald-900 transition-all active:border-b-0 active:translate-y-1 flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Enregistrement en cours...</>
+                <><Loader2 className="h-5 w-5 animate-spin" /> Enregistrement...</>
               ) : saved ? (
-                <><CheckCircle className="mr-2 h-5 w-5" />Production enregistrée !</>
+                <><CheckCircle className="h-5 w-5" /> Enregistré avec succès !</>
               ) : (
-                <><Save className="mr-2 h-5 w-5" />Enregistrer la Production</>
+                <><Save className="h-5 w-5" /> Enregistrer la Production</>
               )}
             </Button>
+            
+            {/* Footer de sécurité */}
+            <div className="mt-6 flex flex-wrap justify-center items-center gap-2 text-xs text-slate-500 font-medium pb-2">
+              <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3 text-emerald-600" /> Données sécurisées</span>
+              <span className="opacity-50">•</span>
+              <span>Calcul automatique</span>
+              <span className="opacity-50">•</span>
+              <span>Interface optimisée pour une saisie rapide</span>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -1020,12 +1077,10 @@ export default function ProductionPage() {
                         {(rec.net_to_deposit || 0).toLocaleString()} FCFA
                       </div>
                       <div className="text-[10px] text-muted-foreground mb-1">net versé</div>
-                      {(isAdmin || isChef) && (
-                        <div className="text-[10px] text-left border-t border-slate-200 pt-1 mt-1">
-                          <div className="text-slate-500">Départ: <span className="font-bold text-slate-700">{rec.departure_time ? new Date(rec.departure_time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></div>
-                          <div className="text-slate-500">Arrivée: <span className="font-bold text-slate-700">{rec.arrival_time ? new Date(rec.arrival_time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></div>
-                        </div>
-                      )}
+                      <div className="text-[10px] text-left border-t border-slate-200 pt-1 mt-1">
+                        <div className="text-slate-500">Départ: <span className="font-bold text-slate-700">{rec.departure_time ? new Date(rec.departure_time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></div>
+                        <div className="text-slate-500">Arrivée: <span className="font-bold text-slate-700">{rec.arrival_time ? new Date(rec.arrival_time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></div>
+                      </div>
                     </div>
 
                     <div className="flex flex-col gap-1 items-end">
