@@ -663,7 +663,7 @@ export default function ProductionPage() {
             Saisie de Production
           </h1>
           <p className="text-muted-foreground text-sm mt-1 uppercase">
-            {user?.name} · {user?.role === 'CAISSIERE' || user?.role === 'AGENT_RECETTE' ? 'AGENT PRODUCTION' : user?.role?.replace('_', ' ')}
+            {user?.name} · {user?.role === 'CAISSIERE' ? 'AGENT PRODUCTION' : user?.role === 'AGENT_RECETTE' ? 'CAISSIÈRE' : user?.role?.replace('_', ' ')}
           </p>
         </div>
         <Button

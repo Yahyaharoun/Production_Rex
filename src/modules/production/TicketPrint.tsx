@@ -1,5 +1,4 @@
-import { useRef } from 'react';
-import Barcode from 'react-barcode';
+import { useRef, useEffect } from 'react';
 
 export interface TicketData {
   id?: string;
@@ -245,8 +244,11 @@ export function TicketPrint({ data, onClose, onPrint }: TicketPrintProps) {
 
             <div className="text-center">
               <div className="italic text-slate-600 text-[11px] mb-3">Merci et bon voyage !</div>
-              <div className="flex justify-center">
-                <Barcode value={barcodeValue} width={1.5} height={40} fontSize={10} margin={0} />
+              <div className="flex justify-center mt-2 p-2 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
+                <div className="text-xs text-slate-400 font-mono text-center">
+                  [ Code-barres {barcodeValue} ]<br/>
+                  <span className="text-[9px]">Généré à l'impression</span>
+                </div>
               </div>
             </div>
           </div>
