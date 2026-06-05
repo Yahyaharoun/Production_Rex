@@ -6,10 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import {
-  FileText, History, Loader2, Bus, Trash2, Calculator,
-  Save, CheckCircle, MapPin, User, Star, AlertCircle, RefreshCw, Check
-} from 'lucide-react';
+import { FileText, Save, CheckCircle, RefreshCw, Trash2, Bus, Search, Loader2, Check, History, Printer, X, Eye, Users, Banknote, DollarSign, Activity, AlertCircle, MessageCircle } from 'lucide-react';
+import { CommentsModal } from '../../components/CommentsModal';
 import { toast } from 'sonner';
 import { useRBAC } from '../../hooks/useRBAC';
 import { useConfirm } from '../../providers/ConfirmProvider';
@@ -91,6 +89,10 @@ export default function ProductionPage() {
   const [validatingAll, setValidatingAll] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
+  
+  // Comments state
+  const [commentsModalOpen, setCommentsModalOpen] = useState(false);
+  const [selectedProductionForComments, setSelectedProductionForComments] = useState<{id: string, immat: string} | null>(null);
 
   const confirm = useConfirm();
   const { canDelete } = useRBAC();
@@ -1253,6 +1255,18 @@ export default function ProductionPage() {
                         </Button>
                       </div>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-200 flex-shrink-0 ml-1"
+                      onClick={() => {
+                        setSelectedProductionForComments({ id: rec.id, immat: rec.immatriculation });
+                        setCommentsModalOpen(true);
+                      }}
+                      title="Commentaires"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1261,6 +1275,14 @@ export default function ProductionPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Modal Commentaires */}
+      <CommentsModal 
+        isOpen={commentsModalOpen}
+        onClose={() => setCommentsModalOpen(false)}
+        productionId={selectedProductionForComments?.id || null}
+        productionImmat={selectedProductionForComments?.immat}
+      />
     </div>
   );
 }

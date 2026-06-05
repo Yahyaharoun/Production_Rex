@@ -6,10 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import {
-  FileText, History, Loader2, Bus, Trash2, Calculator,
-  Save, CheckCircle, MapPin, User, Star, AlertCircle, RefreshCw, Check
-} from 'lucide-react';
+import { FileText, Save, CheckCircle, RefreshCw, Trash2, Bus, Search, Loader2, Check, History, Printer, X, Eye, Users, Banknote, DollarSign, Activity, AlertCircle, MessageCircle } from 'lucide-react';
+import { CommentsModal } from '../../components/CommentsModal';
 import { toast } from 'sonner';
 import { useConfirm } from '../../providers/ConfirmProvider';
 import { supabase } from '../../lib/supabase';
@@ -93,6 +91,10 @@ export default function BordereauxPage() {
   const [validatingAll, setValidatingAll] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
   const confirm = useConfirm();
+  
+  // Comments state
+  const [commentsModalOpen, setCommentsModalOpen] = useState(false);
+  const [selectedProductionForComments, setSelectedProductionForComments] = useState<{id: string, immat: string} | null>(null);
 
   const roleStr = String(user?.role || '').toUpperCase().trim();
   const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
@@ -1191,6 +1193,18 @@ export default function BordereauxPage() {
                         </Button>
                       </div>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-200 flex-shrink-0 ml-1 mt-1"
+                      onClick={() => {
+                        setSelectedProductionForComments({ id: rec.id, immat: rec.immatriculation });
+                        setCommentsModalOpen(true);
+                      }}
+                      title="Commentaires"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1199,6 +1213,14 @@ export default function BordereauxPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Modal Commentaires */}
+      <CommentsModal 
+        isOpen={commentsModalOpen}
+        onClose={() => setCommentsModalOpen(false)}
+        productionId={selectedProductionForComments?.id || null}
+        productionImmat={selectedProductionForComments?.immat}
+      />
     </div>
   );
 }
