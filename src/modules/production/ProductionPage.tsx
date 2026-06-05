@@ -531,24 +531,8 @@ export default function ProductionPage() {
       await fetchHistory();
       setTimeout(() => setSaved(false), 3000);
 
-      // Afficher le ticket thermique pour l'Agent Production
-      if (user?.role === 'CAISSIERE' || user?.role === 'AGENT_RECETTE') {
-        setTicketData({
-          id: clientId, // we don't have the real DB ID if online without returning it, so we use clientId
-          companyName: 'PRODUCTION REX',
-          ticketNumber: clientId.split('-')[0].toUpperCase(),
-          date: new Date().toLocaleDateString('fr-FR'),
-          time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          tripNumber: payload.trip_number,
-          vehicleImmat: payload.immatriculation,
-          driverName: data.driverName,
-          passengers: data.passengersAtDeparture,
-          revenue: calculatedRevenue,
-          agentName: user?.name || '',
-          ligne: data.ligne,
-          productionType: data.productionType,
-        });
-      }
+      // Le ticket n'est plus affiché pour l'Agent de Production (Caissière)
+      // L'Agent de Recette a déjà son ticket généré plus haut.
 
       // Réinitialiser partiellement
       reset({
