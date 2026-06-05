@@ -610,6 +610,22 @@ export default function ProductionPage() {
     fetchHistory();
   };
 
+  const handleDeleteSelected = async () => {
+    if (!canValidate || selectedIds.size === 0) return;
+    if (!confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} production(s) sélectionnée(s) ? Cette action est définitive.`)) return;
+    setValidatingAll(true); // Reusing this state for loading indication
+    let ok = 0; let fail = 0;
+    for (const id of Array.from(selectedIds)) {
+      const { error } = await supabase.from('productions').delete().eq('id', id);
+      if (error) fail++; else ok++;
+    }
+    setValidatingAll(false);
+    setSelectedIds(new Set());
+    if (ok > 0) toast.success(`${ok} production(s) supprimée(s) !`);
+    if (fail > 0) toast.error(`${fail} suppression(s) en erreur.`);
+    fetchHistory();
+  };
+
   const handlePrintDone = async (tripNumber: string) => {
     try {
       if (navigator.onLine && tripNumber) {
@@ -1044,15 +1060,26 @@ export default function ProductionPage() {
                       {selectedIds.size === history.filter(r => r.status !== 'VALIDATED').length && selectedIds.size > 0 ? 'Tout décocher' : 'Tout cocher'}
                     </Button>
                     {selectedIds.size > 0 && (
-                      <Button
-                        size="sm"
-                        onClick={handleValidateSelected}
-                        disabled={validatingAll}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        {validatingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
-                        Valider {selectedIds.size} sélection(s)
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 text-xs font-bold text-destructive hover:bg-destructive hover:text-white border-destructive"
+                          onClick={handleDeleteSelected}
+                          disabled={validatingAll}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1.5" /> Supprimer la sélection ({selectedIds.size})
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                          onClick={handleValidateSelected}
+                          disabled={validatingAll}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1.5" /> 
+                          {validatingAll ? 'Validation...' : `Valider la sélection (${selectedIds.size})`}
+                        </Button>
+                      </div>
                     )}
                   </>
                 )}
