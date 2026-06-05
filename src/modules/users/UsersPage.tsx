@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
 import { UserPlus, Users, Loader2, Trash2, ShieldCheck, Phone, CreditCard, PowerOff, Power, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirm } from '../../providers/ConfirmProvider';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
@@ -41,6 +42,8 @@ export default function UsersPage() {
   const [phone, setPhone] = useState('');
   const [cni, setCni] = useState('');
   const [agenceId, setAgenceId] = useState<string>('');
+  
+  const confirm = useConfirm();
 
   const isPDG = user?.role === 'PDG';
   const isChef = user?.role === 'CHEF_AGENCE';
@@ -158,7 +161,13 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irréversible.')) return;
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: 'Voulez-vous vraiment supprimer cet utilisateur ? Cette action est irréversible.',
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
+
     setLoading(true);
     try {
       const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
@@ -174,7 +183,13 @@ export default function UsersPage() {
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
-    if (!window.confirm(`Voulez-vous vraiment ${newStatus ? 'activer' : 'suspendre'} cet utilisateur ?`)) return;
+    const isConfirmed = await confirm({
+      title: newStatus ? 'Activation' : 'Suspension',
+      message: `Voulez-vous vraiment ${newStatus ? 'activer' : 'suspendre'} cet utilisateur ?`,
+      variant: newStatus ? 'info' : 'warning'
+    });
+    if (!isConfirmed) return;
+
     setLoading(true);
     try {
       const { error } = await supabase.rpc('admin_toggle_user_status', { target_user_id: userId, new_status: newStatus });

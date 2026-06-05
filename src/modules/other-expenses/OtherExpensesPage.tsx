@@ -8,14 +8,16 @@ import { OtherExpenseForm } from './OtherExpenseForm';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useRBAC } from '../../hooks/useRBAC';
+import { useConfirm } from '../../providers/ConfirmProvider';
 import { OtherExpense } from '../../types';
 
 export default function OtherExpensesPage() {
   const { expenses, loading, addExpense, validateExpense, deleteExpense } = useOtherExpenses();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'VALIDATED' | 'REJECTED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'VALIDATED' | 'REJECTED'>('PENDING');
   const { can, user } = useRBAC();
+  const confirm = useConfirm();
   const canAdd = can('write', 'other_expenses');
   // Caissiere cannot validate. Chef can validate their own agency.
   const canValidate = (agenceId: string) => can('write', 'other_expenses', agenceId) && (user?.role === 'PDG' || user?.role === 'CHEF_AGENCE');
@@ -31,7 +33,7 @@ export default function OtherExpensesPage() {
   };
 
   const handleAction = async (expense: OtherExpense, action: 'VALIDATED' | 'REJECTED') => {
-    let reason = '';
+    let reason: string | undefined = undefined;
     if (action === 'REJECTED') {
       const input = prompt('Veuillez indiquer le motif du rejet :');
       if (input === null) return;
@@ -41,7 +43,12 @@ export default function OtherExpensesPage() {
       }
       reason = input;
     } else {
-      if (!window.confirm('Voulez-vous vraiment valider cette dépense ?')) return;
+      const isConfirmed = await confirm({
+        title: 'Validation',
+        message: 'Voulez-vous vraiment valider cette dépense ?',
+        variant: 'info'
+      });
+      if (!isConfirmed) return;
     }
     
     await validateExpense((expense.id || expense.clientId)!, action, reason);
@@ -87,11 +94,14 @@ export default function OtherExpensesPage() {
     if (selectedIds.size === 0) return;
     
     const toValidate = filteredExpenses.filter(r => selectedIds.has((r.id || r.clientId)!) && r.status === 'PENDING');
-    if (toValidate.length === 0) {
-      alert('Toutes les dépenses sélectionnées sont déjà traitées.');
-      return;
-    }
-    if (!window.confirm(`Voulez-vous valider les ${toValidate.length} dépense(s) sélectionnée(s) ?`)) return;
+    if (toValidate.length === 0) return;
+
+    const isConfirmed = await confirm({
+      title: 'Validation multiple',
+      message: `Voulez-vous valider les ${toValidate.length} dépense(s) sélectionnée(s) ?`,
+      variant: 'info'
+    });
+    if (!isConfirmed) return;
     
     setValidatingAll(true);
     for (const record of toValidate) {
@@ -104,7 +114,13 @@ export default function OtherExpensesPage() {
   const handleDeleteSelected = async () => {
     if (user?.role !== 'PDG' && user?.role !== 'CHEF_AGENCE') return;
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} dépense(s) sélectionnée(s) ? Cette action est définitive.`)) return;
+    
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: `Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} dépense(s) sélectionnée(s) ? Cette action est définitive.`,
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
     
     setValidatingAll(true);
     for (const id of Array.from(selectedIds)) {
@@ -303,8 +319,9 @@ export default function OtherExpensesPage() {
                             </>
                           )}
                           {(user?.role === 'PDG' || user?.role === 'CHEF_AGENCE') && (
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full" onClick={() => {
-                              if (window.confirm('Voulez-vous vraiment supprimer cette dépense ?')) {
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full" onClick={async () => {
+                              const isConfirmed = await confirm('Voulez-vous vraiment supprimer cette dépense ?');
+                              if (isConfirmed) {
                                 deleteExpense((expense.id || expense.clientId)!);
                               }
                             }} title="Supprimer">

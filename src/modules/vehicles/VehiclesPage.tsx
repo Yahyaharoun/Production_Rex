@@ -4,6 +4,7 @@ import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useConfirm } from '../../providers/ConfirmProvider';
 import { CarFront, Plus, X, CheckCircle, AlertCircle, Loader2, Bus, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
@@ -24,6 +25,7 @@ interface Vehicle {
   production_type?: 'VIP' | 'CLASSIQUE';
   is_locked_immat?: boolean;
   is_locked_seats?: boolean;
+  ligne?: string;
 }
 
 const emptyForm = {
@@ -41,8 +43,8 @@ const emptyForm = {
 
 function VehicleForm({ mode, initial, onSave, onCancel, saving }: { 
   mode: 'add' | 'edit'; 
-  initial: typeof emptyForm; 
-  onSave: (v: typeof emptyForm) => void; 
+  initial: any; 
+  onSave: (v: any) => void; 
   onCancel: () => void; 
   saving: boolean;
 }) {
@@ -152,18 +154,14 @@ export default function VehiclesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<'ALL' | VehicleStatus>('ALL');
+  const confirm = useConfirm();
 
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      if (navigator.onLine) {
-        const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
-        if (error) throw error;
-        setVehicles(data || []);
-      } else {
-        const localData = await db.vehicles.toArray();
-        setVehicles(localData.sort((a, b) => a.immatriculation.localeCompare(b.immatriculation)));
-      }
+      const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
+      if (error) throw error;
+      setVehicles(data || []);
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -173,7 +171,7 @@ export default function VehiclesPage() {
 
   useEffect(() => { fetchVehicles(); }, []);
 
-  const handleAdd = async (v: typeof emptyForm) => {
+  const handleAdd = async (v: any) => {
     setSaving(true);
     try {
       const { error } = await supabase.from('vehicles').insert(v);
@@ -188,7 +186,7 @@ export default function VehiclesPage() {
     }
   };
 
-  const handleEdit = async (v: typeof emptyForm) => {
+  const handleEdit = async (v: any) => {
     if (!editingVehicle) return;
     setSaving(true);
     try {
@@ -205,7 +203,13 @@ export default function VehiclesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer ce véhicule ?')) return;
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: 'Voulez-vous vraiment supprimer ce véhicule ?',
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
+    
     setLoading(true);
     try {
       const { error } = await supabase.from('vehicles').delete().eq('id', id);

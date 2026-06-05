@@ -13,6 +13,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { db } from '../../lib/dexie';
 import { queueSync, logActivity } from '../../services/syncService';
 import { useRBAC } from '../../hooks/useRBAC';
+import { useConfirm } from '../../providers/ConfirmProvider';
 
 const normalize = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
 
@@ -30,6 +31,7 @@ export default function WashingControlPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const confirm = useConfirm();
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<WashFormValues>({
     resolver: zodResolver(washSchema),
@@ -276,7 +278,8 @@ export default function WashingControlPage() {
   const handleDeleteSelected = async () => {
     if (!canDelete) return;
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} lavage(s) sélectionné(s) ? Cette action est définitive.`)) return;
+    const isConfirmed = await confirm('Voulez-vous vraiment SUPPRIMER les ' + selectedIds.size + ' lavage(s) sélectionné(s) ? Cette action est définitive.');
+    if (!isConfirmed) return;
     
     setDeletingAll(true);
     for (const id of Array.from(selectedIds)) {
@@ -295,7 +298,10 @@ export default function WashingControlPage() {
       if (!isBulk) toast.error('Non autorisé');
       return;
     }
-    if (!isBulk && !confirm('Supprimer ce lavage ?')) return;
+    if (!isBulk) {
+      const isConfirmed = await confirm('Supprimer ce lavage ?');
+      if (!isConfirmed) return;
+    }
 
     try {
       if (navigator.onLine && id) {

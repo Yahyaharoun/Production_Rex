@@ -11,6 +11,7 @@ import {
   Save, CheckCircle, MapPin, User, Star, AlertCircle, RefreshCw, Check
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirm } from '../../providers/ConfirmProvider';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -72,6 +73,9 @@ interface ProductionRecord {
   agence_id?: string;
   production_type?: 'CLASSIQUE' | 'VIP';
   price_per_ticket?: number;
+  synced?: boolean;
+  departure_time?: string;
+  arrival_time?: string;
 }
 
 export default function BordereauxPage() {
@@ -88,6 +92,7 @@ export default function BordereauxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [validatingAll, setValidatingAll] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
+  const confirm = useConfirm();
 
   const roleStr = String(user?.role || '').toUpperCase().trim();
   const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
@@ -532,9 +537,6 @@ export default function BordereauxPage() {
       await fetchHistory();
       setTimeout(() => setSaved(false), 3000);
 
-      // Le ticket n'est plus affiché pour l'Agent de Production (Caissière)
-      // L'Agent de Recette a déjà son ticket généré plus haut.
-
       // Réinitialiser partiellement
       reset({
         totalSeats: 30,
@@ -555,10 +557,16 @@ export default function BordereauxPage() {
   //  Suppression 
   const handleDelete = async (id: string) => {
     if (!canValidate) return;
-    if (!confirm('Voulez-vous vraiment supprimer cette production ?')) return;
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: 'Voulez-vous vraiment supprimer cette production ?',
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
+    
     const { error } = await supabase.from('productions').delete().eq('id', id);
     if (!error) {
-      toast.success('Production supprime');
+      toast.success('Production supprimée');
       fetchHistory();
     } else {
       toast.error('Erreur de suppression', { description: error.message });
@@ -567,7 +575,12 @@ export default function BordereauxPage() {
 
   const handleValidate = async (id: string) => {
     if (!canValidate) return;
-    if (!confirm('Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.')) return;
+    const isConfirmed = await confirm({
+      title: 'Validation',
+      message: 'Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.',
+      variant: 'info'
+    });
+    if (!isConfirmed) return;
     const { error } = await supabase.from('productions').update({ status: 'BORDEREAU_TERMINE' }).eq('id', id);
     if (!error) {
       toast.success('Production validée !');
@@ -602,7 +615,12 @@ export default function BordereauxPage() {
       toast.info('Tous les bordereaux sélectionnés sont déjà validés.');
       return;
     }
-    if (!confirm(`Voulez-vous valider les ${toValidate.length} bordereau(x) sélectionné(s) ?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Validation multiple',
+      message: `Voulez-vous valider les ${toValidate.length} bordereau(x) sélectionné(s) ?`,
+      variant: 'info'
+    });
+    if (!isConfirmed) return;
     setValidatingAll(true);
     let ok = 0; let fail = 0;
     for (const record of toValidate) {
@@ -618,7 +636,12 @@ export default function BordereauxPage() {
 
   const handleDeleteSelected = async () => {
     if (!canValidate || selectedIds.size === 0) return;
-    if (!confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} bordereau(x) sélectionné(s) ? Cette action est définitive.`)) return;
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: `Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} bordereau(x) sélectionné(s) ? Cette action est définitive.`,
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
     setValidatingAll(true);
     let ok = 0; let fail = 0;
     for (const id of Array.from(selectedIds)) {
@@ -663,6 +686,8 @@ export default function BordereauxPage() {
       toast.error("Erreur", { description: err.message });
     }
   };
+
+  const unvalidatedCount = history.filter(r => selectedIds.has(r.id) && r.status !== 'BORDEREAU_TERMINE').length;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-8">

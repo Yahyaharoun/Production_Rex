@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
+import { useConfirm } from '../../providers/ConfirmProvider';
 
 type DriverStatus = 'AVAILABLE' | 'ON_TRIP' | 'REST';
 type DriverType = 'TITULAIRE' | 'MERCENAIRE';
@@ -147,33 +148,19 @@ export default function DriversPage() {
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [search, setSearch] = useState('');
+  const confirm = useConfirm();
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (navigator.onLine) {
-        const [driversRes, vehiclesRes] = await Promise.all([
-          supabase.from('drivers').select('*, vehicles(immatriculation)').order('name'),
-          supabase.from('vehicles').select('id, immatriculation').order('immatriculation')
-        ]);
-        if (driversRes.error) throw driversRes.error;
-        if (vehiclesRes.error) throw vehiclesRes.error;
-        setDrivers(driversRes.data || []);
-        setVehicles(vehiclesRes.data || []);
-      } else {
-        const allDrivers = await db.drivers.toArray();
-        const allVehicles = await db.vehicles.toArray();
-        setVehicles(allVehicles);
-        
-        const populatedDrivers = allDrivers.map(d => {
-          const v = allVehicles.find(v => v.id === d.assigned_vehicle_id);
-          return {
-            ...d,
-            vehicles: v ? { immatriculation: v.immatriculation } : undefined
-          };
-        });
-        setDrivers(populatedDrivers.sort((a, b) => a.name.localeCompare(b.name)));
-      }
+      const [driversRes, vehiclesRes] = await Promise.all([
+        supabase.from('drivers').select('*, vehicles(immatriculation)').order('name'),
+        supabase.from('vehicles').select('id, immatriculation').order('immatriculation')
+      ]);
+      if (driversRes.error) throw driversRes.error;
+      if (vehiclesRes.error) throw vehiclesRes.error;
+      setDrivers(driversRes.data || []);
+      setVehicles(vehiclesRes.data || []);
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -231,7 +218,13 @@ export default function DriversPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer ce chauffeur ?')) return;
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: 'Voulez-vous vraiment supprimer ce chauffeur ?',
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
+    
     setLoading(true);
     try {
       const { error } = await supabase.from('drivers').delete().eq('id', id);

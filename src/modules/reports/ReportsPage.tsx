@@ -10,8 +10,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
-import { cn } from '../../lib/utils';
+import { useRBAC } from '../../hooks/useRBAC';
+import { useConfirm } from '../../providers/ConfirmProvider';
 import { useAuthStore } from '../../store/useAuthStore';
+import { cn } from '../../lib/utils';
 import { Skeleton } from '../../components/ui/skeleton';
 import * as XLSX from 'xlsx';
 
@@ -59,6 +61,8 @@ export default function ReportsPage() {
   const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
   const canValidate = isAdmin || isChef;
 
+  const confirm = useConfirm();
+  const { canDelete } = useRBAC();
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
   const [fuelRecords, setFuelRecords] = useState<any[]>([]);
@@ -160,14 +164,24 @@ export default function ReportsPage() {
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
   const handleDelete = async (id: string) => {
-    if (!canValidate) return;
-    if (!window.confirm('Voulez-vous vraiment supprimer cette production ?')) return;
-    const { error } = await supabase.from('productions').delete().eq('id', id);
-    if (!error) {
-      toast.success('Production supprime');
-      fetchReports();
-    } else {
-      toast.error('Erreur de suppression', { description: (error as any)?.message });
+    if (!canDelete) return;
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: 'Voulez-vous vraiment supprimer cette production ?',
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const { error } = await supabase.from('productions').delete().eq('id', id);
+      if (!error) {
+        toast.success('Production supprimée');
+        fetchReports();
+      } else {
+        toast.error('Erreur de suppression', { description: (error as any)?.message });
+      }
+    } catch (err) {
+      toast.error('Erreur système');
     }
   };
 

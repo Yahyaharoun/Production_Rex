@@ -13,6 +13,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { db } from '../../lib/dexie';
 import { queueSync, logActivity } from '../../services/syncService';
 import { useRBAC } from '../../hooks/useRBAC';
+import { useConfirm } from '../../providers/ConfirmProvider';
 
 const normalize = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
 
@@ -33,6 +34,7 @@ export default function FuelExpensePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const confirm = useConfirm();
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FuelFormValues>({
     resolver: zodResolver(fuelSchema),
@@ -317,7 +319,8 @@ export default function FuelExpensePage() {
   const handleDeleteSelected = async () => {
     if (!canDelete) return;
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} dépense(s) sélectionnée(s) ? Cette action est définitive.`)) return;
+    const isConfirmed = await confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} dépense(s) sélectionnée(s) ? Cette action est définitive.`);
+    if (!isConfirmed) return;
     
     setDeletingAll(true);
     for (const id of Array.from(selectedIds)) {
@@ -338,14 +341,15 @@ export default function FuelExpensePage() {
     
     // Si ce n'est pas depuis handleDeleteSelected, on demande confirmation
     if (arguments.length === 3 && deletingAll === false) {
-      if (!window.confirm('Voulez-vous vraiment supprimer cette dépense de carburant ?')) return;
+      const isConfirmed = await confirm('Voulez-vous vraiment supprimer cette dépense de carburant ?');
+      if (!isConfirmed) return;
     }
 
     try {
       if (isFromProduction) {
         const prodId = id.replace('prod_', '');
         await supabase.from('productions').update({ expense_fuel: 0 }).eq('id', prodId);
-        await db.productions.where('id').equals(prodId).modify({ expense_fuel: 0 });
+        await db.productions.filter(p => p.id === prodId).modify({ expense_fuel: 0 });
       } else {
         if (navigator.onLine && id) {
           await supabase.from('fuel_expenses').delete().eq('id', id);

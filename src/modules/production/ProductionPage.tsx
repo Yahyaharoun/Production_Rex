@@ -11,6 +11,8 @@ import {
   Save, CheckCircle, MapPin, User, Star, AlertCircle, RefreshCw, Check
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRBAC } from '../../hooks/useRBAC';
+import { useConfirm } from '../../providers/ConfirmProvider';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -87,8 +89,11 @@ export default function ProductionPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [validatingAll, setValidatingAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
 
+  const confirm = useConfirm();
+  const { canDelete } = useRBAC();
   const roleStr = String(user?.role || '').toUpperCase().trim();
   const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
   const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
@@ -552,28 +557,52 @@ export default function ProductionPage() {
   };
 
   //  Suppression 
-  const handleDelete = async (id: string) => {
-    if (!canValidate) return;
-    if (!confirm('Voulez-vous vraiment supprimer cette production ?')) return;
-    const { error } = await supabase.from('productions').delete().eq('id', id);
-    if (!error) {
-      toast.success('Production supprime');
-      fetchHistory();
-    } else {
-      toast.error('Erreur de suppression', { description: error.message });
+  const handleDelete = async (id: string, isFromHistory = false, skipConfirm = false) => {
+    if (!canDelete) return toast.error('Non autorisé');
+    
+    // Si la suppression vient de la page et pas d'une action groupée (qui gère sa propre confirmation)
+    if (!skipConfirm) {
+      const isConfirmed = await confirm({
+        title: 'Suppression',
+        message: 'Voulez-vous vraiment supprimer cette production ?',
+        variant: 'danger'
+      });
+      if (!isConfirmed) return;
+    }
+
+    try {
+      const { error } = await supabase.from('productions').delete().eq('id', id);
+      if (!error) {
+        toast.success('Production supprimée');
+        fetchHistory();
+      } else {
+        toast.error('Erreur de suppression', { description: error.message });
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleValidate = async (id: string) => {
-    if (!canValidate) return;
-    if (!confirm('Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.')) return;
-    const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
-    if (!error) {
-      toast.success('Production validée !');
-      setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-      fetchHistory();
-    } else {
-      toast.error('Erreur de validation', { description: error.message });
+    if (!canValidate) return toast.error('Non autorisé');
+    const isConfirmed = await confirm({
+      title: 'Validation',
+      message: 'Voulez-vous valider cette production ? Elle apparaîtra ensuite dans les rapports.',
+      variant: 'info'
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).eq('id', id);
+      if (!error) {
+        toast.success('Production validée !');
+        setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+        fetchHistory();
+      } else {
+        toast.error('Erreur de validation', { description: error.message });
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -601,7 +630,13 @@ export default function ProductionPage() {
       toast.info('Toutes les productions sélectionnées sont déjà validées.');
       return;
     }
-    if (!confirm(`Voulez-vous valider les ${toValidate.length} production(s) sélectionnée(s) ? Elles apparaîtront dans les rapports.`)) return;
+    const isConfirmed = await confirm({
+      title: 'Validation multiple',
+      message: `Voulez-vous valider les ${toValidate.length} production(s) sélectionnée(s) ? Elles apparaîtront dans les rapports.`,
+      variant: 'info'
+    });
+    if (!isConfirmed) return;
+    
     setValidatingAll(true);
     let ok = 0; let fail = 0;
     for (const record of toValidate) {
@@ -616,9 +651,15 @@ export default function ProductionPage() {
   };
 
   const handleDeleteSelected = async () => {
-    if (!canValidate || selectedIds.size === 0) return;
-    if (!confirm(`Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} production(s) sélectionnée(s) ? Cette action est définitive.`)) return;
-    setValidatingAll(true); // Reusing this state for loading indication
+    if (!canValidate || selectedIds.size === 0) return;    
+    const isConfirmed = await confirm({
+      title: 'Suppression',
+      message: `Voulez-vous vraiment SUPPRIMER les ${selectedIds.size} production(s) sélectionnée(s) ? Cette action est définitive.`,
+      variant: 'danger'
+    });
+    if (!isConfirmed) return;
+    
+    setDeletingAll(true);
     let ok = 0; let fail = 0;
     for (const id of Array.from(selectedIds)) {
       const { error } = await supabase.from('productions').delete().eq('id', id);
