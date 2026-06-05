@@ -101,7 +101,7 @@ export const PrintableReport = React.forwardRef<HTMLDivElement, PrintableReportP
         </div>
 
         <div className="text-center">
-          <h2 className="text-2xl font-black uppercase tracking-widest text-slate-800">Rapport de Production Par Ligne</h2>
+          <h2 className="text-2xl font-black uppercase tracking-widest text-slate-800">Rapport Global</h2>
           <p className="text-slate-500 mt-1">Rapport détaillé des productions</p>
           <div className="mt-4 inline-flex items-center gap-4 border px-4 py-2 rounded-full text-sm font-medium">
              <span className="text-slate-500 uppercase text-xs">Période Sélectionnée:</span>
@@ -133,7 +133,7 @@ export const PrintableReport = React.forwardRef<HTMLDivElement, PrintableReportP
 
       {/* 2. RAPPORT PAR LIGNE */}
       <div className="mb-8">
-        <h3 className="text-emerald-700 font-bold uppercase text-sm mb-4 border-b border-emerald-100 pb-2">2. Rapport Par Ligne</h3>
+        <h3 className="text-emerald-700 font-bold uppercase text-sm mb-4 border-b border-emerald-100 pb-2">2. Rapport Global</h3>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-emerald-700 text-white">
