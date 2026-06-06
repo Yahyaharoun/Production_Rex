@@ -3,14 +3,19 @@ import ReactDOM from 'react-dom/client';
 import App from './app/App.tsx';
 import './index.css';
 
+import { registerSW } from 'virtual:pwa-register';
+
 // Enregistrement du Service Worker avec gestion des erreurs
 if ('serviceWorker' in navigator) {
-  // Forcer la mise à jour du service worker existant
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    registrations.forEach(reg => {
-      reg.update().catch(() => {});
-    });
-  }).catch(() => {});
+  const updateSW = registerSW({
+    onNeedRefresh() {
+      // Optionnel: informer l'utilisateur qu'une mise à jour est dispo
+      console.log('Mise à jour disponible pour la PWA.');
+    },
+    onOfflineReady() {
+      console.log('La PWA est prête pour un usage hors-ligne.');
+    },
+  });
 }
 
 // Gestionnaire d'erreurs global - évite la page blanche
