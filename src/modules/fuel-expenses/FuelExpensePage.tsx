@@ -110,8 +110,6 @@ export default function FuelExpensePage() {
       console.error('Erreur background fetch:', err);
     }
   };
-    }
-  };
 
   const fetchVehicles = async () => {
     try {
@@ -262,7 +260,6 @@ export default function FuelExpensePage() {
       if (w) await handleDelete(w.id, w.clientId || w.client_id, !!w.isFromProduction);
     }
     toast.success(`${idsToDelete.length} dépense(s) supprimée(s)`);
-    }
 
     setDeletingAll(false);
     setSelectedIds(new Set());

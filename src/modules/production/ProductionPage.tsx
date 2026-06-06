@@ -214,10 +214,9 @@ export default function ProductionPage() {
           }
         }
       } catch (err: unknown) {
-        console.error('Erreur background fetch:', err);
-      } finally {
-        setLoadingHistory(false);
-      }
+      console.error('Erreur background fetch:', err);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
