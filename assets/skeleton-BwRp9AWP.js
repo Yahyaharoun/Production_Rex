@@ -1,1 +1,0 @@
-import{_ as e,l as t}from"./index-Cj5xr2-L.js";var n=e();function r({className:e,...r}){return(0,n.jsx)(`div`,{className:t(`animate-pulse rounded-md bg-muted/50`,e),...r})}export{r as t};
