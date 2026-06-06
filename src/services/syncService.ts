@@ -23,9 +23,13 @@ export const syncAllPending = async () => {
 
   let successCount = 0;
   let errorCount = 0;
+  let lastErrorMessage = '';
 
   for (const item of pending) {
-    if ((item.retries || 0) >= 5) continue;
+    if ((item.retries || 0) >= 5) {
+      await db.syncQueue.delete(item.id!);
+      continue;
+    }
 
     await db.syncQueue.update(item.id!, { status: 'SYNCING' });
     try {
@@ -66,6 +70,7 @@ export const syncAllPending = async () => {
         retries,
         errorMessage: err.message,
       });
+      lastErrorMessage = err.message;
       errorCount++;
     }
   }
@@ -73,7 +78,9 @@ export const syncAllPending = async () => {
   if (successCount > 0) {
     toast.success(`${successCount} élément(s) synchronisé(s) avec succès !`);
   }
-  if (errorCount > 0) {
+  if (errorCount > 0 && lastErrorMessage) {
+    toast.error(`Échec de synchronisation (${errorCount}): ${lastErrorMessage}`);
+  } else if (errorCount > 0) {
     toast.error(`${errorCount} élément(s) n'ont pas pu être synchronisés.`);
   }
 };
