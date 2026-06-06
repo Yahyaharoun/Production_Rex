@@ -4,11 +4,12 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Mail, Lock, Loader2, LogIn, Bus, WifiOff } from 'lucide-react';
+import { Mail, Lock, Loader2, LogIn, Bus, WifiOff, Download, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { cacheUserCredentials, offlineLogin } from '../../lib/offlineAuth';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 /** Détecte si une erreur est une erreur réseau (pas de connexion Internet) */
 function isNetworkError(err: unknown): boolean {
@@ -31,9 +32,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const isOnline = useOnlineStatus();
+  const { isInstallable, isInstalled, install } = usePWAInstall();
 
   const { login } = useAuthStore();
   const navigate = useNavigate();
+
+  const handleInstall = async () => {
+    const ok = await install();
+    if (ok) {
+      toast.success('Application installée !', {
+        description: 'Vous pouvez maintenant utiliser Production Rex hors connexion depuis votre bureau.',
+        duration: 5000,
+      });
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,11 +241,31 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="text-center pt-4 border-t border-border/50">
+        <div className="text-center pt-4 border-t border-border/50 space-y-3">
+
+          {/* Bouton d'installation PWA - visible SANS connexion */}
+          {!isInstalled && isInstallable && (
+            <button
+              type="button"
+              onClick={handleInstall}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary font-bold text-sm transition-all hover:-translate-y-0.5"
+            >
+              <Download className="h-4 w-4" />
+              Télécharger l'application
+            </button>
+          )}
+
+          {isInstalled && (
+            <div className="flex items-center justify-center gap-2 text-xs text-emerald-600 font-bold">
+              <CheckCircle className="h-4 w-4" />
+              Application installée et disponible hors connexion
+            </div>
+          )}
+
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             © 2026 Production Rex System
           </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
+          <p className="text-[10px] text-muted-foreground">
             Contactez votre administrateur pour obtenir un accès.
           </p>
         </div>

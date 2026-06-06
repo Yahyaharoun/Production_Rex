@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { supabase } from '../lib/supabase';
 import { Role } from '../types';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 // ── Logo Rex ──────────────────────────────────────────────────────────────
 const RexLogo = ({ size = 32 }: { size?: number }) => (
@@ -63,53 +64,30 @@ const OnlineStatus = () => {
 
 export const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [showIOSGuide, setShowIOSGuide] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const { isInstallable, isInstalled, install } = usePWAInstall();
   const { user, login, logout } = useAuthStore();
   const navigate = useNavigate();
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-  // PWA Install Prompt
+  // Auto-show install banner when installable
   useEffect(() => {
-    const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-    setIsStandalone(checkStandalone);
-
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      // Auto-show banner after a short delay
-      setTimeout(() => setShowInstallBanner(true), 3000);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', () => {
-      setIsStandalone(true);
-      setShowInstallBanner(false);
-      setDeferredPrompt(null);
-    });
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
+    if (isInstallable && !isInstalled) {
+      const timer = setTimeout(() => setShowInstallBanner(true), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isInstallable, isInstalled]);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setIsStandalone(true);
-        setShowInstallBanner(false);
-      }
-      setDeferredPrompt(null);
-    } else if (isIOS && isSafari) {
-      setShowIOSGuide(true);
-    } else if (isIOS && !isSafari) {
-      setShowIOSGuide(true);
+    if (isInstallable) {
+      const ok = await install();
+      if (ok) setShowInstallBanner(false);
+    } else if (isIOS) {
+      alert('Sur iPhone/iPad :\n1. Ouvrez Safari\n2. Appuyez sur Partager \uD83D\uDCE4\n3. "Sur l\'écran d\'accueil"');
     } else {
-      // Desktop fallback: guide manuel
-      alert('Pour installer cette application :\n\nChrome/Edge : cliquez sur l\'icône ⊕ ou le bouton installer dans la barre d\'adresse (à droite), puis cliquez "Installer".\n\nFirefox : l\'installation PWA n\'est pas supportée.');
+      alert('Pour installer :\nChrome/Edge : icône ⊕ dans la barre d\'adresse → "Installer"');
     }
   };
 
@@ -240,7 +218,7 @@ export const MainLayout = () => {
           Se déconnecter
         </Button>
 
-        {!isStandalone && (
+        {!isInstalled && (
           <Button
             variant="default"
             size="sm"
@@ -259,7 +237,7 @@ export const MainLayout = () => {
     <div className="flex h-screen overflow-hidden bg-background">
 
       {/* ── Bannière d'installation PWA ── */}
-      {showInstallBanner && !isStandalone && (
+      {showInstallBanner && !isInstalled && (
         <div className="fixed top-0 left-0 right-0 z-[100] bg-emerald-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Download className="h-4 w-4 flex-shrink-0" />
@@ -284,7 +262,7 @@ export const MainLayout = () => {
       )}
 
       {/* ── Sidebar desktop ── */}
-      <div className={cn("hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:flex-col", showInstallBanner && !isStandalone ? "mt-10" : "")}>
+      <div className={cn("hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:flex-col", showInstallBanner && !isInstalled ? "mt-10" : "")}>
         <SidebarContent />
       </div>
 
