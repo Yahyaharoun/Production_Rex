@@ -28,6 +28,17 @@ type WashFormValues = z.infer<typeof washSchema>;
 export default function WashingControlPage() {
   const { user } = useAuthStore();
   const { canManageFuel, canDelete } = useRBAC();
+  const [saving, setSaving] = useState(false);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const confirm = useConfirm();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingAll, setDeletingAll] = useState(false);
+
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<WashFormValues>({
+    resolver: zodResolver(washSchema),
+    defaultValues: { amount: 0, vehicleImmat: '' }
+  });
+
   // Lecture réactive depuis Dexie
   const dexieWashes = useLiveQuery(() => db.washes.toArray());
   const washes = dexieWashes ? dexieWashes.sort((a, b) => b.createdAt - a.createdAt) : [];
@@ -214,8 +225,6 @@ export default function WashingControlPage() {
 
 
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [deletingAll, setDeletingAll] = useState(false);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
