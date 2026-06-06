@@ -10,64 +10,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      manifestFilename: 'manifest.json',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
 
       // ── Manifest ──────────────────────────────────────────────────────────────
-      manifest: {
-        name: 'Production Rex',
-        short_name: 'Rex',
-        description: 'Application de gestion des transports - Rex',
-        start_url: '/',
-        scope: '/',
-        display: 'standalone',
-        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
-        background_color: '#065f46',
-        theme_color: '#0ea57a',
-        lang: 'fr',
-        icons: [
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable'
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
-        ],
-        categories: ['business', 'productivity'],
-        shortcuts: [
-          {
-            name: 'Production',
-            short_name: 'Saisie',
-            description: 'Saisir une production',
-            url: '/app/production',
-            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
-          },
-          {
-            name: 'Tableau de bord',
-            short_name: 'Dashboard',
-            description: 'Voir le tableau de bord',
-            url: '/app/dashboard',
-            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
-          }
-        ]
-      },
+      manifest: false,
 
       // ── Workbox (Service Worker) ──────────────────────────────────────────────
       workbox: {
