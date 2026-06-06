@@ -1,1 +1,0 @@
-import{d as e,y as t}from"./index-BmwBPTq6.js";var n=t();function r({className:t,...r}){return(0,n.jsx)(`div`,{className:e(`animate-pulse rounded-md bg-muted/50`,t),...r})}export{r as t};
