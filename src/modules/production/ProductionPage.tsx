@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Label } from '../../components/ui/label';
-import { FileText, Save, CheckCircle, RefreshCw, Trash2, Bus, Search, Loader2, Check, History, Printer, X, Eye, Users, Banknote, DollarSign, Activity, AlertCircle, MessageCircle } from 'lucide-react';
+import { FileText, Save, CheckCircle, RefreshCw, Trash2, Bus, Search, Loader2, Check, History, Printer, X, Eye, Users, Banknote, DollarSign, Activity, AlertCircle, MessageCircle, Calculator, MapPin, User, Star } from 'lucide-react';
 import { CommentsModal } from '../../components/CommentsModal';
 import { toast } from 'sonner';
 import { useRBAC } from '../../hooks/useRBAC';
