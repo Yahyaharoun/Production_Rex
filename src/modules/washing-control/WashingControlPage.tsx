@@ -14,6 +14,7 @@ import { db } from '../../lib/dexie';
 import { queueSync, logActivity } from '../../services/syncService';
 import { useRBAC } from '../../hooks/useRBAC';
 import { useConfirm } from '../../providers/ConfirmProvider';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 const normalize = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
 
