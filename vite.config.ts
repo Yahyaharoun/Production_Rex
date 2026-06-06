@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
 
@@ -16,13 +16,13 @@ export default defineConfig({
       manifest: {
         name: 'Production Rex',
         short_name: 'Rex',
-        description: 'Application de gestion des transports',
+        description: 'Application de gestion des transports - Rex',
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
         background_color: '#065f46',
         theme_color: '#0ea57a',
-        orientation: 'portrait-primary',
         lang: 'fr',
         icons: [
           {
@@ -32,16 +32,22 @@ export default defineConfig({
             purpose: 'any'
           },
           {
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          {
             src: '/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
           {
-            src: '/favicon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any'
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ],
         categories: ['business', 'productivity'],

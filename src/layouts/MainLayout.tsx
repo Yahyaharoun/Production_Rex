@@ -66,6 +66,7 @@ export const MainLayout = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const { user, login, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -80,10 +81,16 @@ export const MainLayout = () => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      // Auto-show banner after a short delay
+      setTimeout(() => setShowInstallBanner(true), 3000);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', () => setIsStandalone(true));
+    window.addEventListener('appinstalled', () => {
+      setIsStandalone(true);
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
+    });
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
@@ -91,12 +98,18 @@ export const MainLayout = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') setIsStandalone(true);
+      if (outcome === 'accepted') {
+        setIsStandalone(true);
+        setShowInstallBanner(false);
+      }
       setDeferredPrompt(null);
     } else if (isIOS && isSafari) {
       setShowIOSGuide(true);
     } else if (isIOS && !isSafari) {
-      setShowIOSGuide(true); // show guide, note Safari required
+      setShowIOSGuide(true);
+    } else {
+      // Desktop fallback: guide manuel
+      alert('Pour installer cette application :\n\nChrome/Edge : cliquez sur l\'icône ⊕ ou le bouton installer dans la barre d\'adresse (à droite), puis cliquez "Installer".\n\nFirefox : l\'installation PWA n\'est pas supportée.');
     }
   };
 
@@ -244,10 +257,37 @@ export const MainLayout = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+
+      {/* ── Bannière d'installation PWA ── */}
+      {showInstallBanner && !isStandalone && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-emerald-600 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Download className="h-4 w-4 flex-shrink-0" />
+            <span>Installez Production Rex sur votre PC pour une utilisation hors connexion !</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleInstallClick}
+              className="bg-white text-emerald-700 px-3 py-1 rounded-md text-xs font-bold hover:bg-emerald-50 transition-colors"
+            >
+              Installer
+            </button>
+            <button
+              onClick={() => setShowInstallBanner(false)}
+              className="text-white/70 hover:text-white p-1"
+              aria-label="Fermer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Sidebar desktop ── */}
-      <div className="hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:flex-col">
+      <div className={cn("hidden lg:flex lg:w-64 lg:flex-shrink-0 lg:flex-col", showInstallBanner && !isStandalone ? "mt-10" : "")}>
         <SidebarContent />
       </div>
+
 
       {/* ── Overlay mobile ── */}
       {sidebarOpen && (
