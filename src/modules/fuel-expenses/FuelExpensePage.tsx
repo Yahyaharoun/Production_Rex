@@ -39,117 +39,76 @@ export default function FuelExpensePage() {
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FuelFormValues>({
     resolver: zodResolver(fuelSchema),
     defaultValues: { amount: 0, category: 'CLASSIQUE', vehicleImmat: '', lineName: '', notes: '' }
-  });
+  });  // Lecture réactive depuis Dexie
+  const dexieFuel = useLiveQuery(() => db.fuelExpenses.toArray());
+  const dexieProd = useLiveQuery(() => db.productions.filter(p => (p.expense_fuel || 0) > 0).toArray());
 
-  // Chargement avec SWR (Stale-While-Revalidate)
-  const loadExpenses = async () => {
-    // 1. Chargement instantané depuis le cache local (Dexie)
+  useEffect(() => {
+    if (dexieFuel === undefined || dexieProd === undefined) return;
+
+    const mappedProds = dexieProd.map(p => ({
+      id: 'prod_' + (p.id || p.clientId),
+      clientId: p.clientId,
+      date: p.date,
+      vehicle_immat: p.immatriculation,
+      vehicleImmat: p.immatriculation,
+      line_name: p.ligne,
+      agence_id: p.agence_id,
+      category: p.production_type || 'CLASSIQUE',
+      amount: p.expense_fuel,
+      notes: 'Lié à une production',
+      caissiere_name: p.caissiere_name,
+      created_by: p.created_by,
+      created_at: p.created_at || new Date().toISOString(),
+      createdAt: new Date(p.created_at || Date.now()).getTime(),
+      isFromProduction: true,
+      originalId: p.id || p.clientId
+    }));
+
+    const mergedLocal = [...dexieFuel, ...mappedProds].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    setExpenses(mergedLocal);
+    setLoading(false);
+  }, [dexieFuel, dexieProd]);
+
+  // Synchronisation silencieuse en arrière-plan
+  const syncFromServer = async () => {
+    if (!navigator.onLine) return;
     try {
-      const localFuel = await db.fuelExpenses.toArray();
-      const localProd = await db.productions.filter(p => (p.expense_fuel || 0) > 0).toArray();
-      const mappedLocalProds = localProd.map(p => ({
-        id: 'prod_' + (p.id || p.clientId),
-        clientId: p.clientId,
-        date: p.date,
-        vehicle_immat: p.immatriculation,
-        vehicleImmat: p.immatriculation,
-        line_name: p.ligne,
-        agence_id: p.agence_id,
-        category: p.production_type || 'CLASSIQUE',
-        amount: p.expense_fuel,
-        notes: 'Lié à une production',
-        caissiere_name: p.caissiere_name,
-        created_by: p.created_by,
-        created_at: p.created_at || new Date().toISOString(),
-        createdAt: new Date(p.created_at || Date.now()).getTime(),
-        isFromProduction: true,
-        originalId: p.id || p.clientId
-      }));
-      
-      const mergedLocal = [...localFuel, ...mappedLocalProds].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setExpenses(mergedLocal);
-    } catch (e) {
-      console.error('Erreur lecture locale', e);
-    }
+      let query = supabase.from('fuel_expenses').select('*').order('created_at', { ascending: false }).limit(200);
+      let prodQuery = supabase.from('productions').select('id, date, immatriculation, ligne, agence_id, production_type, expense_fuel, caissiere_name, created_at, created_by').gt('expense_fuel', 0).order('created_at', { ascending: false }).limit(200);
 
-    // 2. Mise à jour silencieuse en arrière-plan
-    if (navigator.onLine) {
-      setLoading(true);
-      try {
-        let query = supabase
-          .from('fuel_expenses')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(200);
-
-        let prodQuery = supabase
-          .from('productions')
-          .select('id, date, immatriculation, ligne, agence_id, production_type, expense_fuel, caissiere_name, created_at, created_by')
-          .gt('expense_fuel', 0)
-          .order('created_at', { ascending: false })
-          .limit(200);
-
-        if (user?.role !== 'PDG' && user?.lineIds && user.lineIds.length > 0) {
-          query = query.in('agence_id', user.lineIds);
-          prodQuery = prodQuery.in('agence_id', user.lineIds);
-        }
-
-        const [fuelRes, prodRes] = await Promise.all([query, prodQuery]);
-        if (fuelRes.error) throw fuelRes.error;
-        if (prodRes.error) throw prodRes.error;
-
-        // Mise à jour du cache local
-        if (fuelRes.data && fuelRes.data.length > 0) {
-          await db.fuelExpenses.clear();
-          for (const exp of fuelRes.data) {
-            await db.fuelExpenses.put({
-              clientId: exp.id,
-              id: exp.id,
-              date: exp.date,
-              vehicleImmat: exp.vehicle_immat,
-              vehicle_immat: exp.vehicle_immat,
-              lineName: exp.line_name,
-              agenceId: exp.agence_id,
-              category: exp.category,
-              amount: exp.amount,
-              notes: exp.notes,
-              caissiere_name: exp.caissiere_name,
-              created_by: exp.created_by,
-              syncStatus: 'SYNCED',
-              createdAt: new Date(exp.created_at).getTime(),
-            });
-          }
-        }
-
-        // Mise à jour de l'UI
-        const mappedProds = (prodRes.data || []).map((p: any) => ({
-          id: 'prod_' + p.id,
-          date: p.date,
-          vehicle_immat: p.immatriculation,
-          line_name: p.ligne,
-          agence_id: p.agence_id,
-          category: p.production_type || 'CLASSIQUE',
-          amount: p.expense_fuel,
-          notes: 'Lié à une production',
-          caissiere_name: p.caissiere_name,
-          created_by: p.created_by,
-          created_at: p.created_at,
-          isFromProduction: true,
-          originalId: p.id
-        }));
-
-        const merged = [...(fuelRes.data || []), ...mappedProds].sort(
-          (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-        );
-
-        setExpenses(merged);
-      } catch (err: any) {
-        console.error('Erreur background fetch:', err);
-      } finally {
-        setLoading(false);
+      if (user?.role !== 'PDG' && user?.lineIds && user.lineIds.length > 0) {
+        query = query.in('agence_id', user.lineIds);
+        prodQuery = prodQuery.in('agence_id', user.lineIds);
       }
-    } else {
-      setLoading(false);
+
+      const [fuelRes] = await Promise.all([query, prodQuery]);
+      
+      if (fuelRes.data && fuelRes.data.length > 0) {
+        // Ne pas effacer tout, on met à jour le cache local
+        for (const exp of fuelRes.data) {
+          await db.fuelExpenses.put({
+            clientId: exp.id,
+            id: exp.id,
+            date: exp.date,
+            vehicleImmat: exp.vehicle_immat,
+            vehicle_immat: exp.vehicle_immat,
+            lineName: exp.line_name,
+            agenceId: exp.agence_id,
+            category: exp.category,
+            amount: exp.amount,
+            notes: exp.notes,
+            caissiere_name: exp.caissiere_name,
+            created_by: exp.created_by,
+            syncStatus: 'SYNCED',
+            createdAt: new Date(exp.created_at).getTime(),
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error('Erreur background fetch:', err);
+    }
+  };
     }
   };
 
@@ -172,7 +131,7 @@ export default function FuelExpensePage() {
   };
 
   useEffect(() => {
-    loadExpenses();
+    syncFromServer();
     fetchVehicles();
   }, [user]);
 
@@ -233,54 +192,31 @@ export default function FuelExpensePage() {
         date: todayStr,
       };
 
-      if (navigator.onLine) {
-        // 2a. Insertion directe dans Supabase
-        const { data: inserted, error } = await supabase.from('fuel_expenses').insert(payload).select().single();
-        if (error) throw error;
+      const clientId = crypto.randomUUID();
+      const payloadWithId = { ...payload, id: clientId };
 
-        // Mise à jour du cache local avec le vrai ID Supabase
-        await db.fuelExpenses.put({
-          clientId: inserted.id,
-          id: inserted.id,
-          date: todayStr,
-          vehicleImmat: vehicle.immatriculation,
-          vehicle_immat: vehicle.immatriculation,
-          lineName: data.lineName,
-          agenceId: user?.agenceId || '',
-          category: data.category,
-          amount: data.amount,
-          notes: data.notes,
-          caissiere_name: user?.name,
-          created_by: user?.id,
-          syncStatus: 'SYNCED',
-          createdAt: Date.now(),
-        });
+      await db.fuelExpenses.put({
+        clientId,
+        id: clientId,
+        date: todayStr,
+        vehicleImmat: vehicle.immatriculation,
+        vehicle_immat: vehicle.immatriculation,
+        lineName: data.lineName,
+        agenceId: user?.agenceId || '',
+        category: data.category,
+        amount: data.amount,
+        notes: data.notes,
+        caissiere_name: user?.name,
+        created_by: user?.id,
+        syncStatus: 'PENDING',
+        createdAt: Date.now(),
+      });
 
-        await logActivity('INSERT', 'fuel_expenses', `Carburant enregistré pour ${vehicle.immatriculation}: ${data.amount} FCFA`, payload, user?.id, user?.email);
-      } else {
-        // 2b. Mise en file d'attente pour synchronisation ultérieure
-        const clientId = await queueSync('fuel_expenses', 'INSERT', payload);
-
-        await db.fuelExpenses.put({
-          clientId,
-          date: todayStr,
-          vehicleImmat: vehicle.immatriculation,
-          vehicle_immat: vehicle.immatriculation,
-          lineName: data.lineName,
-          agenceId: user?.agenceId || '',
-          category: data.category,
-          amount: data.amount,
-          notes: data.notes,
-          caissiere_name: user?.name,
-          created_by: user?.id,
-          syncStatus: 'PENDING',
-          createdAt: Date.now(),
-        });
-      }
+      await queueSync('fuel_expenses', 'INSERT', payloadWithId);
+      await logActivity('INSERT', 'fuel_expenses', `Carburant enregistré pour ${vehicle.immatriculation}: ${data.amount} FCFA`, payload, user?.id, user?.email);
 
       toast.success('Dépense carburant enregistrée', { description: `${vehicle.immatriculation} — ${data.amount.toLocaleString('fr-FR')} FCFA` });
       reset();
-      loadExpenses();
     } catch (err: any) {
       toast.error('Erreur enregistrement carburant', { description: err.message });
     } finally {
@@ -318,25 +254,17 @@ export default function FuelExpensePage() {
     
     setDeletingAll(true);
     const idsToDelete = Array.from(selectedIds);
-    if (navigator.onLine && idsToDelete.length > 0) {
-      const { error } = await supabase.from('fuel_expenses').delete().in('id', idsToDelete);
-      if (error) {
-        toast.error('Erreur', { description: error.message });
-      } else {
-        toast.success(`${idsToDelete.length} dépense(s) supprimée(s)`);
-      }
-    } else {
-      // Offline fallback: delete locally only
-      for (const id of idsToDelete) {
-        const w = expenses.find(e => (e.id || e.clientId) === id);
-        if (w) await handleDelete(w.id, w.clientId || w.client_id, !!w.isFromProduction);
-      }
-      toast.success(`${idsToDelete.length} dépense(s) mis en attente de suppression`);
+    
+    // Offline fallback: delete locally and queue
+    for (const id of idsToDelete) {
+      const w = expenses.find(e => (e.id || e.clientId) === id);
+      if (w) await handleDelete(w.id, w.clientId || w.client_id, !!w.isFromProduction);
+    }
+    toast.success(`${idsToDelete.length} dépense(s) supprimée(s)`);
     }
 
     setDeletingAll(false);
     setSelectedIds(new Set());
-    loadExpenses();
   };
 
   const handleDelete = async (id: string, clientId: string, isFromProduction: boolean) => {
@@ -354,17 +282,14 @@ export default function FuelExpensePage() {
     try {
       if (isFromProduction) {
         const prodId = id.replace('prod_', '');
-        await supabase.from('productions').update({ expense_fuel: 0 }).eq('id', prodId);
-        await db.productions.filter(p => p.id === prodId).modify({ expense_fuel: 0 });
+        await db.productions.filter(p => p.id === prodId || p.clientId === prodId).modify({ expense_fuel: 0 });
+        await queueSync('productions', 'UPDATE', { id: prodId, expense_fuel: 0 });
       } else {
-        if (navigator.onLine && id) {
-          await supabase.from('fuel_expenses').delete().eq('id', id);
-        }
         await db.fuelExpenses.delete(clientId);
+        await queueSync('fuel_expenses', 'DELETE', { id: clientId });
       }
       if (!deletingAll) {
          toast.success('Dépense supprimée');
-         loadExpenses();
       }
     } catch (err: any) {
       if (!deletingAll) toast.error('Erreur', { description: err.message });
@@ -383,7 +308,7 @@ export default function FuelExpensePage() {
           <h2 className="text-2xl font-bold tracking-tight">Carburant</h2>
           <p className="text-muted-foreground">Gestion des dépenses de carburant</p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadExpenses} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={syncFromServer} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Actualiser
         </Button>

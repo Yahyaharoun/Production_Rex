@@ -10,6 +10,9 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
+import { db } from '../../lib/dexie';
+import { queueSync } from '../../services/syncService';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 type VehicleStatus = 'ACTIVE' | 'MAINTENANCE' | 'GARAGE';
 
@@ -148,37 +151,28 @@ export default function VehiclesPage() {
   const isAdmin = user?.role === 'PDG';
   const isChef = user?.role === 'CHEF_AGENCE';
   const isAdminOrChef = isAdmin || isChef;
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<'ALL' | VehicleStatus>('ALL');
   const confirm = useConfirm();
 
-  const fetchVehicles = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.from('vehicles').select('*').order('immatriculation');
-      if (error) throw error;
-      setVehicles(data || []);
-    } catch (err: unknown) {
-      toast.error('Erreur', { description: (err as any)?.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchVehicles(); }, []);
+  // Lecture en temps réel depuis Dexie
+  const dexieVehicles = useLiveQuery(() => db.vehicles.toArray());
+  const vehicles = dexieVehicles || [];
+  const loading = dexieVehicles === undefined;
 
   const handleAdd = async (v: any) => {
     setSaving(true);
     try {
-      const { error } = await supabase.from('vehicles').insert(v);
-      if (error) throw error;
+      const clientId = crypto.randomUUID();
+      const newVehicle = { ...v, id: clientId };
+      // 1. Sauvegarde locale
+      await db.vehicles.put(newVehicle);
+      // 2. File d'attente pour Supabase
+      await queueSync('vehicles', 'INSERT', newVehicle);
       toast.success('Véhicule ajouté');
       setShowForm(false);
-      fetchVehicles();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -190,11 +184,13 @@ export default function VehiclesPage() {
     if (!editingVehicle) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('vehicles').update(v).eq('id', editingVehicle.id);
-      if (error) throw error;
+      const updatedVehicle = { ...editingVehicle, ...v };
+      // 1. Mise à jour locale
+      await db.vehicles.put(updatedVehicle);
+      // 2. File d'attente
+      await queueSync('vehicles', 'UPDATE', updatedVehicle);
       toast.success('Véhicule modifié');
       setEditingVehicle(null);
-      fetchVehicles();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -212,10 +208,11 @@ export default function VehiclesPage() {
     
     setLoading(true);
     try {
-      const { error } = await supabase.from('vehicles').delete().eq('id', id);
-      if (error) throw error;
+      // 1. Suppression locale
+      await db.vehicles.delete(id);
+      // 2. File d'attente
+      await queueSync('vehicles', 'DELETE', { id });
       toast.success('Véhicule supprimé');
-      fetchVehicles();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -223,7 +220,9 @@ export default function VehiclesPage() {
     }
   };
 
-  const filtered = vehicles.filter((v) => {
+  const sortedVehicles = [...vehicles].sort((a, b) => a.immatriculation.localeCompare(b.immatriculation));
+
+  const filtered = sortedVehicles.filter((v) => {
     const matchStatus = filterStatus === 'ALL' || v.status === filterStatus;
     return matchStatus;
   });

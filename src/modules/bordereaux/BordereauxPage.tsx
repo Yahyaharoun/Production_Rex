@@ -16,6 +16,8 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { db } from '../../lib/dexie';
 import { stripSensitiveFields } from '../../lib/utils';
 import { TicketBordereau } from './TicketBordereau';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useMemo } from 'react';
 
 //  Tarifs dynamiques par agence 
 const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
@@ -80,7 +82,6 @@ export default function BordereauxPage() {
   const user = useAuthStore((s) => s.user);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [history, setHistory] = useState<ProductionRecord[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [agenciesError, setAgenciesError] = useState<string | null>(null);
@@ -101,6 +102,22 @@ export default function BordereauxPage() {
   const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
   const canValidate = isAdmin || isChef;
   const userAgenceId = user?.agenceId || '';
+
+  const dexieProds = useLiveQuery(() => db.productions.toArray());
+
+  const history = useMemo(() => {
+    if (!dexieProds) return [];
+    let localData = dexieProds;
+    if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+      localData = localData.filter(p => user.lineIds?.includes(p.agence_id || p.agenceId));
+    }
+    return localData
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      .map((r: any) => ({
+        ...r,
+        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
+      }));
+  }, [dexieProds, isAdmin, user]);
 
   const {
     register, control, handleSubmit, reset, setValue,
@@ -172,60 +189,33 @@ export default function BordereauxPage() {
     }
   };
 
-  // Chargement de l'historique avec pattern SWR (Stale-While-Revalidate)
-  const fetchHistory = async () => {
-    // 1. Affichage immédiat depuis le cache local (Dexie)
+  const syncHistoryFromServer = async () => {
+    if (!navigator.onLine) return;
+    setLoadingHistory(true);
     try {
-      const allProds = await db.productions.toArray();
-      let localData = allProds;
+      let query = supabase
+        .from('productions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
       if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
-        localData = allProds.filter(p => user.lineIds.includes(p.agence_id || p.agenceId));
+        query = query.in('agence_id', user.lineIds);
       }
-      localData.sort((a, b) => b.created_at?.localeCompare(a.created_at));
+
+      const { data, error } = await query;
+      if (error) throw error;
       
-      const dataWithType = localData.map((r: any) => ({
-        ...r,
-        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
-      }));
-      setHistory(dataWithType);
-    } catch(e) {
-      console.error('Erreur lecture locale', e);
-    }
-
-    // 2. Si en ligne, mise à jour silencieuse en arrière-plan
-    if (navigator.onLine) {
-      setLoadingHistory(true);
-      try {
-        let query = supabase
-          .from('productions')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(200);
-
-        if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
-          query = query.in('agence_id', user.lineIds);
+      if (data) {
+        // Mise à jour du cache local, on ne fait pas de db.clear() pour éviter de perdre les données en attente
+        for (const p of data) {
+           await db.productions.put({...p, clientId: p.id}).catch(() => {});
         }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        
-        if (data) {
-          // Mise à jour du cache local
-          await db.productions.clear();
-          await db.productions.bulkPut(data.map(p => ({...p, clientId: p.id})));
-          
-          // Mise à jour de l'UI
-          const dataWithType = data.map((r: any) => ({
-            ...r,
-            production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
-          }));
-          setHistory(dataWithType);
-        }
-      } catch (err: unknown) {
-        console.error('Erreur background fetch:', err);
-      } finally {
-        setLoadingHistory(false);
       }
+    } catch (err: unknown) {
+      console.error('Erreur background fetch:', err);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -250,7 +240,7 @@ export default function BordereauxPage() {
 
   useEffect(() => {
     fetchAgencies();
-    fetchHistory();
+    syncHistoryFromServer();
     fetchVehicles();
 
     // Abonnement temps réel
@@ -258,7 +248,7 @@ export default function BordereauxPage() {
       const channel = supabase
         .channel('public:productions')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'productions' }, () => {
-          fetchHistory();
+          syncHistoryFromServer();
         })
         .subscribe();
 
@@ -391,78 +381,9 @@ export default function BordereauxPage() {
         toast.success('Ticket généré !', {
           description: `Bordereau prêt pour l'impression.`,
         });
-      } else if (navigator.onLine) {
-        // En ligne : envoi direct à Supabase
-        const sanitized = stripSensitiveFields(payload);
-        // Remove client_id since it's only for local offline tracking
-        delete (sanitized as any).client_id;
-        
-        const { error } = await supabase.from('productions').insert(sanitized);
-        if (error) throw error;
-
-        // Synchronisation automatique du carburant
-        if (payload.expense_fuel > 0) {
-          const fuelPayload = {
-            vehicle_immat: baseImmat,
-            amount: payload.expense_fuel,
-            category: 'CARBURANT',
-            line_name: data.ligne,
-            notes: `Auto-généré depuis prod ${tripNumber}`,
-            agence_id: agenceId || null,
-            caissiere_name: payload.caissiere_name || null,
-            created_by: user?.id || null,
-            date: payload.date,
-          };
-          const { data: insertedFuel } = await supabase.from('fuel_expenses').insert(fuelPayload).select().single();
-          if (insertedFuel) {
-            await db.fuelExpenses.put({
-              clientId: insertedFuel.id,
-              id: insertedFuel.id,
-              date: payload.date,
-              vehicleImmat: baseImmat,
-              vehicle_immat: baseImmat,
-              lineName: data.ligne,
-              agenceId: agenceId || '',
-              category: 'CARBURANT',
-              amount: payload.expense_fuel,
-              notes: fuelPayload.notes,
-              caissiere_name: payload.caissiere_name,
-              created_by: user?.id,
-              syncStatus: 'SYNCED',
-              createdAt: Date.now(),
-            });
-          }
-        }
-
-        // Aussi sauvegarder localement pour que ce soit visible hors-ligne
-        await db.productions.put({
-          clientId,
-          immatriculation: payload.immatriculation,
-          driver_name: payload.driver_name,
-          total_seats: payload.total_seats,
-          passengers_at_departure: payload.passengers_at_departure,
-          revenue: payload.revenue,
-          expense_fuel: payload.expense_fuel,
-          expense_toll: 0,
-          expense_washing: 0,
-          expense_others: 0,
-          net_to_deposit: calculatedNet,
-          production_type: data.productionType,
-          price_per_ticket: pricePerTicket,
-          status: 'BORDEREAU_EN_COURS',
-          date: payload.date,
-          caissiere_name: payload.caissiere_name,
-          ligne: data.ligne,
-          agence_id: agenceId || '',
-          created_at: new Date().toISOString(),
-          synced: true,
-        });
-
-        toast.success('Bordereau enregistré !', {
-          description: `${data.productionType} · ${data.passengersAtDeparture} pass. × ${pricePerTicket.toLocaleString()} FCFA = Net: ${calculatedNet.toLocaleString()} FCFA`,
-        });
       } else {
-        // Hors-ligne : sauvegarde dans IndexedDB + file d'attente de sync
+        const payloadWithId = { ...payload, id: clientId };
+        // Save production to dexie
         const localEntry = {
           clientId,
           immatriculation: payload.immatriculation,
@@ -479,33 +400,22 @@ export default function BordereauxPage() {
           price_per_ticket: pricePerTicket,
           status: 'BORDEREAU_EN_COURS',
           date: payload.date,
+          trip_number: payload.trip_number,
           caissiere_name: payload.caissiere_name,
           ligne: data.ligne,
           agence_id: agenceId || '',
           created_at: new Date().toISOString(),
-          synced: false,
+          synced: navigator.onLine,
         };
-
+        
         await db.productions.put(localEntry);
+        await queueSync('productions', 'INSERT', payloadWithId);
 
-        // Ajouter dans la file de sync pour envoi dès que connexion revient
-        await db.syncQueue.add({
-          clientId,
-          table: 'productions',
-          action: 'INSERT',
-          payload: {
-            ...payload,
-            net_to_deposit: calculatedNet,
-          },
-          status: 'PENDING',
-          retries: 0,
-          createdAt: new Date().toISOString(),
-        });
-
-        // Synchronisation automatique du carburant hors ligne
+        // Synchronisation automatique du carburant
         if (payload.expense_fuel > 0) {
           const fuelClientId = crypto.randomUUID();
           const fuelPayload = {
+            id: fuelClientId,
             vehicle_immat: baseImmat,
             amount: payload.expense_fuel,
             category: 'CARBURANT',
@@ -519,6 +429,7 @@ export default function BordereauxPage() {
           
           await db.fuelExpenses.put({
             clientId: fuelClientId,
+            id: fuelClientId,
             date: payload.date,
             vehicleImmat: baseImmat,
             vehicle_immat: baseImmat,
@@ -532,21 +443,11 @@ export default function BordereauxPage() {
             syncStatus: 'PENDING',
             createdAt: Date.now(),
           });
-
-          await db.syncQueue.add({
-            clientId: fuelClientId,
-            table: 'fuel_expenses',
-            action: 'INSERT',
-            payload: fuelPayload,
-            status: 'PENDING',
-            retries: 0,
-            createdAt: new Date().toISOString(),
-          });
+          await queueSync('fuel_expenses', 'INSERT', fuelPayload);
         }
 
-        toast.success('Bordereau sauvegardé localement', {
-          description: `⚡ Hors-ligne. Sera synchronisée automatiquement dès que vous aurez internet.`,
-          duration: 6000,
+        toast.success('Bordereau enregistré !', {
+          description: `${data.productionType} · ${data.passengersAtDeparture} pass. × ${pricePerTicket.toLocaleString()} FCFA = Net: ${calculatedNet.toLocaleString()} FCFA`,
         });
       }
 
@@ -581,13 +482,10 @@ export default function BordereauxPage() {
     });
     if (!isConfirmed) return;
     
-    const { error } = await supabase.from('productions').delete().eq('id', id);
-    if (!error) {
-      toast.success('Production supprimée');
-      fetchHistory();
-    } else {
-      toast.error('Erreur de suppression', { description: error.message });
-    }
+    await db.productions.where('clientId').equals(id).delete().catch(() => {});
+    await db.productions.where('id').equals(id).delete().catch(() => {});
+    await queueSync('productions', 'DELETE', { id });
+    toast.success('Production supprimée');
   };
 
   const handleValidate = async (id: string) => {
@@ -677,12 +575,18 @@ export default function BordereauxPage() {
 
   const handlePrintDone = async (tripNumber: string) => {
     try {
-      if (navigator.onLine && tripNumber) {
-        await supabase
-          .from('productions')
-          .update({ departure_time: new Date().toISOString() })
-          .eq('trip_number', tripNumber)
-          .is('departure_time', null);
+      if (tripNumber) {
+        const prods = await db.productions.toArray();
+        const prod = prods.find(p => p.trip_number === tripNumber);
+        if (prod && !prod.departure_time) {
+          const now = new Date().toISOString();
+          const id = prod.clientId || prod.id;
+          if (id) {
+            await db.productions.where('clientId').equals(id).modify({ departure_time: now }).catch(() => {});
+            await db.productions.where('id').equals(id).modify({ departure_time: now }).catch(() => {});
+            await queueSync('productions', 'UPDATE', { id, departure_time: now });
+          }
+        }
       }
     } catch (err) {
       console.error('Erreur mise à jour heure de départ', err);
@@ -691,17 +595,11 @@ export default function BordereauxPage() {
 
   const handleValidateArrival = async (id: string) => {
     try {
-      if (!navigator.onLine) {
-         toast.error("Impossible de valider l'arrivée hors ligne.");
-         return;
-      }
-      const { error } = await supabase
-        .from('productions')
-        .update({ status: 'BORDEREAU_TERMINE', arrival_time: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
+      await db.productions.where('clientId').equals(id).modify({ status: 'BORDEREAU_TERMINE', arrival_time: new Date().toISOString() }).catch(() => {});
+      await db.productions.where('id').equals(id).modify({ status: 'BORDEREAU_TERMINE', arrival_time: new Date().toISOString() }).catch(() => {});
+      await queueSync('productions', 'UPDATE', { id, status: 'BORDEREAU_TERMINE', arrival_time: new Date().toISOString() });
+      
       toast.success('Arrivée validée avec succès !');
-      fetchHistory();
     } catch (err: any) {
       toast.error("Erreur", { description: err.message });
     }
@@ -736,7 +634,7 @@ export default function BordereauxPage() {
           size="sm"
           onClick={() => {
             setShowHistory(!showHistory);
-            if (!showHistory) fetchHistory();
+            if (!showHistory) syncHistoryFromServer();
           }}
         >
           <History className="h-4 w-4 mr-2" />

@@ -17,6 +17,8 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { db } from '../../lib/dexie';
 import { stripSensitiveFields } from '../../lib/utils';
 import { TicketPrint } from './TicketPrint';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useMemo } from 'react';
 
 //  Tarifs dynamiques par agence 
 const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
@@ -78,7 +80,24 @@ export default function ProductionPage() {
   const user = useAuthStore((s) => s.user);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [history, setHistory] = useState<ProductionRecord[]>([]);
+  const dexieProds = useLiveQuery(() => db.productions.toArray());
+  const roleStr = String(user?.role || '').toUpperCase().trim();
+  const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
+
+  const history = useMemo(() => {
+    if (!dexieProds) return [];
+    let localData = dexieProds;
+    if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+      localData = localData.filter(p => user.lineIds?.includes(p.agence_id || p.agenceId));
+    }
+    return localData
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      .map((r: any) => ({
+        ...r,
+        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
+      }));
+  }, [dexieProds, isAdmin, user]);
+
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [agenciesError, setAgenciesError] = useState<string | null>(null);
@@ -96,8 +115,6 @@ export default function ProductionPage() {
 
   const confirm = useConfirm();
   const { canDelete } = useRBAC();
-  const roleStr = String(user?.role || '').toUpperCase().trim();
-  const isAdmin = roleStr === 'PDG' || roleStr === 'ADMIN';
   const isChef = roleStr === 'CHEF_AGENCE' || roleStr === 'CHEF D\'AGENCE' || roleStr === 'CHEF AGENCE';
   const canValidate = isAdmin || isChef;
   const userAgenceId = user?.agenceId || '';
@@ -172,28 +189,8 @@ export default function ProductionPage() {
     }
   };
 
-  // Chargement de l'historique avec pattern SWR (Stale-While-Revalidate)
-  const fetchHistory = async () => {
-    // 1. Affichage immédiat depuis le cache local (Dexie)
-    try {
-      const allProds = await db.productions.toArray();
-      let localData = allProds;
-      if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
-        localData = allProds.filter(p => user.lineIds.includes(p.agence_id || p.agenceId));
-      }
-      localData.sort((a, b) => b.created_at?.localeCompare(a.created_at));
-      
-      const dataWithType = localData.map((r: any) => ({
-        ...r,
-        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
-      }));
-      setHistory(dataWithType);
-    } catch(e) {
-      console.error('Erreur lecture locale', e);
-    }
-
-    // 2. Si en ligne, mise à jour silencieuse en arrière-plan
-    if (navigator.onLine) {
+  const syncHistoryFromServer = async () => {
+    if (!navigator.onLine) return;
       setLoadingHistory(true);
       try {
         let query = supabase
@@ -210,16 +207,10 @@ export default function ProductionPage() {
         if (error) throw error;
         
         if (data) {
-          // Mise à jour du cache local
-          await db.productions.clear();
-          await db.productions.bulkPut(data.map(p => ({...p, clientId: p.id})));
-          
-          // Mise à jour de l'UI
-          const dataWithType = data.map((r: any) => ({
-            ...r,
-            production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
-          }));
-          setHistory(dataWithType);
+          // Mise à jour du cache local, on ne fait pas de db.clear() pour éviter de perdre les données en attente
+          for (const p of data) {
+             await db.productions.put({...p, clientId: p.id}).catch(() => {});
+          }
         }
       } catch (err: unknown) {
         console.error('Erreur background fetch:', err);
@@ -251,7 +242,7 @@ export default function ProductionPage() {
 
   useEffect(() => {
     fetchAgencies();
-    fetchHistory();
+    syncHistoryFromServer();
     fetchVehicles();
 
     // Abonnement temps réel
@@ -259,7 +250,7 @@ export default function ProductionPage() {
       const channel = supabase
         .channel('public:productions')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'productions' }, () => {
-          fetchHistory();
+          syncHistoryFromServer();
         })
         .subscribe();
 
@@ -391,78 +382,9 @@ export default function ProductionPage() {
         toast.success('Ticket généré !', {
           description: `Bordereau prêt pour l'impression.`,
         });
-      } else if (navigator.onLine) {
-        // En ligne : envoi direct à Supabase
-        const sanitized = stripSensitiveFields(payload);
-        // Remove client_id since it's only for local offline tracking
-        delete (sanitized as any).client_id;
-        
-        const { error } = await supabase.from('productions').insert(sanitized);
-        if (error) throw error;
-
-        // Synchronisation automatique du carburant
-        if (payload.expense_fuel > 0) {
-          const fuelPayload = {
-            vehicle_immat: baseImmat,
-            amount: payload.expense_fuel,
-            category: 'CARBURANT',
-            line_name: data.ligne,
-            notes: `Auto-généré depuis prod ${tripNumber}`,
-            agence_id: agenceId || null,
-            caissiere_name: payload.caissiere_name || null,
-            created_by: user?.id || null,
-            date: payload.date,
-          };
-          const { data: insertedFuel } = await supabase.from('fuel_expenses').insert(fuelPayload).select().single();
-          if (insertedFuel) {
-            await db.fuelExpenses.put({
-              clientId: insertedFuel.id,
-              id: insertedFuel.id,
-              date: payload.date,
-              vehicleImmat: baseImmat,
-              vehicle_immat: baseImmat,
-              lineName: data.ligne,
-              agenceId: agenceId || '',
-              category: 'CARBURANT',
-              amount: payload.expense_fuel,
-              notes: fuelPayload.notes,
-              caissiere_name: payload.caissiere_name,
-              created_by: user?.id,
-              syncStatus: 'SYNCED',
-              createdAt: Date.now(),
-            });
-          }
-        }
-
-        // Aussi sauvegarder localement pour que ce soit visible hors-ligne
-        await db.productions.put({
-          clientId,
-          immatriculation: payload.immatriculation,
-          driver_name: payload.driver_name,
-          total_seats: payload.total_seats,
-          passengers_at_departure: payload.passengers_at_departure,
-          revenue: payload.revenue,
-          expense_fuel: payload.expense_fuel,
-          expense_toll: 0,
-          expense_washing: 0,
-          expense_others: 0,
-          net_to_deposit: calculatedNet,
-          production_type: data.productionType,
-          price_per_ticket: pricePerTicket,
-          status: 'DRAFT',
-          date: payload.date,
-          caissiere_name: payload.caissiere_name,
-          ligne: data.ligne,
-          agence_id: agenceId || '',
-          created_at: new Date().toISOString(),
-          synced: true,
-        });
-
-        toast.success('Production enregistrée !', {
-          description: `${data.productionType} · ${data.passengersAtDeparture} pass. × ${pricePerTicket.toLocaleString()} FCFA = Net: ${calculatedNet.toLocaleString()} FCFA`,
-        });
       } else {
-        // Hors-ligne : sauvegarde dans IndexedDB + file d'attente de sync
+        const payloadWithId = { ...payload, id: clientId };
+        // Save production to dexie
         const localEntry = {
           clientId,
           immatriculation: payload.immatriculation,
@@ -479,33 +401,22 @@ export default function ProductionPage() {
           price_per_ticket: pricePerTicket,
           status: 'DRAFT',
           date: payload.date,
+          trip_number: payload.trip_number,
           caissiere_name: payload.caissiere_name,
           ligne: data.ligne,
           agence_id: agenceId || '',
           created_at: new Date().toISOString(),
-          synced: false,
+          synced: navigator.onLine,
         };
-
+        
         await db.productions.put(localEntry);
+        await queueSync('productions', 'INSERT', payloadWithId);
 
-        // Ajouter dans la file de sync pour envoi dès que connexion revient
-        await db.syncQueue.add({
-          clientId,
-          table: 'productions',
-          action: 'INSERT',
-          payload: {
-            ...payload,
-            net_to_deposit: calculatedNet,
-          },
-          status: 'PENDING',
-          retries: 0,
-          createdAt: new Date().toISOString(),
-        });
-
-        // Synchronisation automatique du carburant hors ligne
+        // Synchronisation automatique du carburant
         if (payload.expense_fuel > 0) {
           const fuelClientId = crypto.randomUUID();
           const fuelPayload = {
+            id: fuelClientId,
             vehicle_immat: baseImmat,
             amount: payload.expense_fuel,
             category: 'CARBURANT',
@@ -519,6 +430,7 @@ export default function ProductionPage() {
           
           await db.fuelExpenses.put({
             clientId: fuelClientId,
+            id: fuelClientId,
             date: payload.date,
             vehicleImmat: baseImmat,
             vehicle_immat: baseImmat,
@@ -532,21 +444,11 @@ export default function ProductionPage() {
             syncStatus: 'PENDING',
             createdAt: Date.now(),
           });
-
-          await db.syncQueue.add({
-            clientId: fuelClientId,
-            table: 'fuel_expenses',
-            action: 'INSERT',
-            payload: fuelPayload,
-            status: 'PENDING',
-            retries: 0,
-            createdAt: new Date().toISOString(),
-          });
+          await queueSync('fuel_expenses', 'INSERT', fuelPayload);
         }
 
-        toast.success('Production sauvegardée localement', {
-          description: `⚡ Hors-ligne. Sera synchronisée automatiquement dès que vous aurez internet.`,
-          duration: 6000,
+        toast.success('Production enregistrée !', {
+          description: `${data.productionType} · ${data.passengersAtDeparture} pass. × ${pricePerTicket.toLocaleString()} FCFA = Net: ${calculatedNet.toLocaleString()} FCFA`,
         });
       }
 
@@ -657,17 +559,16 @@ export default function ProductionPage() {
     
     setValidatingAll(true);
     const idsToValidate = toValidate.map(r => r.id);
-    const { error } = await supabase.from('productions').update({ status: 'VALIDATED' }).in('id', idsToValidate);
+    
+    for (const id of idsToValidate) {
+      await db.productions.where('clientId').equals(id).modify({ status: 'VALIDATED' });
+      await db.productions.where('id').equals(id).modify({ status: 'VALIDATED' });
+      await queueSync('productions', 'UPDATE', { id, status: 'VALIDATED' });
+    }
     
     setValidatingAll(false);
-    if (!error) {
-      toast.success(`${idsToValidate.length} production(s) validée(s) !`);
-      setSelectedIds(new Set());
-      fetchHistory();
-    } else {
-      toast.error('Erreur de validation multiple', { description: error.message });
-    }
-    fetchHistory();
+    toast.success(`${idsToValidate.length} production(s) validée(s) !`);
+    setSelectedIds(new Set());
   };
 
   const handleDeleteSelected = async () => {
@@ -681,26 +582,32 @@ export default function ProductionPage() {
     
     setDeletingAll(true);
     const idsToDelete = Array.from(selectedIds);
-    const { error } = await supabase.from('productions').delete().in('id', idsToDelete);
+    
+    for (const id of idsToDelete) {
+      await db.productions.where('clientId').equals(id).delete().catch(() => {});
+      await db.productions.where('id').equals(id).delete().catch(() => {});
+      await queueSync('productions', 'DELETE', { id });
+    }
     
     setDeletingAll(false);
-    if (!error) {
-      toast.success(`${idsToDelete.length} production(s) supprimée(s) !`);
-      setSelectedIds(new Set());
-      fetchHistory();
-    } else {
-      toast.error('Erreur de suppression multiple', { description: error.message });
-    }
+    toast.success(`${idsToDelete.length} production(s) supprimée(s) !`);
+    setSelectedIds(new Set());
   };
 
   const handlePrintDone = async (tripNumber: string) => {
     try {
-      if (navigator.onLine && tripNumber) {
-        await supabase
-          .from('productions')
-          .update({ departure_time: new Date().toISOString() })
-          .eq('trip_number', tripNumber)
-          .is('departure_time', null);
+      if (tripNumber) {
+        const prods = await db.productions.toArray();
+        const prod = prods.find(p => p.trip_number === tripNumber);
+        if (prod && !prod.departure_time) {
+          const now = new Date().toISOString();
+          const id = prod.clientId || prod.id;
+          if (id) {
+            await db.productions.where('clientId').equals(id).modify({ departure_time: now }).catch(() => {});
+            await db.productions.where('id').equals(id).modify({ departure_time: now }).catch(() => {});
+            await queueSync('productions', 'UPDATE', { id, departure_time: now });
+          }
+        }
       }
     } catch (err) {
       console.error('Erreur mise à jour heure de départ', err);
@@ -709,17 +616,11 @@ export default function ProductionPage() {
 
   const handleValidateArrival = async (id: string) => {
     try {
-      if (!navigator.onLine) {
-         toast.error("Impossible de valider l'arrivée hors ligne.");
-         return;
-      }
-      const { error } = await supabase
-        .from('productions')
-        .update({ arrival_time: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
+      await db.productions.where('clientId').equals(id).modify({ arrival_time: new Date().toISOString() });
+      await db.productions.where('id').equals(id).modify({ arrival_time: new Date().toISOString() });
+      await queueSync('productions', 'UPDATE', { id, arrival_time: new Date().toISOString() });
+      
       toast.success('Arrivée validée avec succès !');
-      fetchHistory();
     } catch (err: any) {
       toast.error("Erreur", { description: err.message });
     }
@@ -754,7 +655,7 @@ export default function ProductionPage() {
           size="sm"
           onClick={() => {
             setShowHistory(!showHistory);
-            if (!showHistory) fetchHistory();
+            if (!showHistory) syncHistoryFromServer();
           }}
         >
           <History className="h-4 w-4 mr-2" />

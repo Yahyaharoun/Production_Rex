@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { FileText, Plus, Clock, Filter, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { FileText, Plus, Clock, Filter, CheckCircle, XCircle, Trash2, RefreshCw } from 'lucide-react';
 import { useOtherExpenses } from './hooks/useOtherExpenses';
 import { OtherExpenseForm } from './OtherExpenseForm';
 import { Skeleton } from '../../components/ui/skeleton';
@@ -12,7 +12,7 @@ import { useConfirm } from '../../providers/ConfirmProvider';
 import { OtherExpense } from '../../types';
 
 export default function OtherExpensesPage() {
-  const { expenses, loading, addExpense, validateExpense, deleteExpense } = useOtherExpenses();
+  const { expenses, loading, addExpense, validateExpense, deleteExpense, refresh } = useOtherExpenses();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'VALIDATED' | 'REJECTED'>('PENDING');
@@ -104,25 +104,15 @@ export default function OtherExpensesPage() {
     if (!isConfirmed) return;
     
     setValidatingAll(true);
-    setValidatingAll(true);
-    const idsToValidate = toValidate.map(r => r.id);
-    if (navigator.onLine && idsToValidate.length > 0) {
-      const { error } = await supabase.from('other_expenses').update({ status: 'VALIDATED' }).in('id', idsToValidate);
-      if (error) {
-        toast.error('Erreur de validation multiple', { description: error.message });
-      } else {
-        toast.success(`${idsToValidate.length} dépense(s) validée(s) !`);
-      }
-    } else {
-      for (const record of toValidate) {
-        await validateExpense((record.id || record.clientId)!, 'VALIDATED', '');
-      }
-      toast.success(`${toValidate.length} dépense(s) validée(s) hors ligne !`);
+    
+    // Offline fallback / pure hook logic
+    for (const record of toValidate) {
+      await validateExpense((record.id || record.clientId)!, 'VALIDATED', '');
     }
+    toast.success(`${toValidate.length} dépense(s) validée(s) !`);
     
     setValidatingAll(false);
     setSelectedIds(new Set());
-    loadExpenses();
   };
 
   const handleDeleteSelected = async () => {
@@ -137,25 +127,15 @@ export default function OtherExpensesPage() {
     if (!isConfirmed) return;
     
     setValidatingAll(true);
-    setValidatingAll(true);
     const idsToDelete = Array.from(selectedIds);
-    if (navigator.onLine && idsToDelete.length > 0) {
-      const { error } = await supabase.from('other_expenses').delete().in('id', idsToDelete);
-      if (error) {
-        toast.error('Erreur de suppression multiple', { description: error.message });
-      } else {
-        toast.success(`${idsToDelete.length} dépense(s) supprimée(s) !`);
-      }
-    } else {
-      for (const id of idsToDelete) {
-        await deleteExpense(id);
-      }
-      toast.success(`${idsToDelete.length} dépense(s) supprimée(s) hors ligne !`);
+    
+    for (const id of idsToDelete) {
+      await deleteExpense(id);
     }
+    toast.success(`${idsToDelete.length} dépense(s) supprimée(s) !`);
     
     setValidatingAll(false);
     setSelectedIds(new Set());
-    loadExpenses();
   };
 
   return (
@@ -185,6 +165,9 @@ export default function OtherExpensesPage() {
             <Clock className="h-5 w-5 text-primary" /> Demandes de Dépenses
           </CardTitle>
           <div className="flex gap-2 items-center">
+            <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="h-9 w-9 p-0 mr-2">
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            </Button>
             {user?.role === 'PDG' || user?.role === 'CHEF_AGENCE' ? (
               <div className="flex gap-2 mr-4">
                 <Button 

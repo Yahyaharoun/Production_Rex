@@ -10,6 +10,9 @@ import { supabase } from '../../lib/supabase';
 import { Skeleton } from '../../components/ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useConfirm } from '../../providers/ConfirmProvider';
+import { db } from '../../lib/dexie';
+import { queueSync } from '../../services/syncService';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 type DriverStatus = 'AVAILABLE' | 'ON_TRIP' | 'REST';
 type DriverType = 'TITULAIRE' | 'MERCENAIRE';
@@ -140,9 +143,6 @@ export default function DriversPage() {
   const isAdmin = user?.role === 'PDG';
   const isChef = user?.role === 'CHEF_AGENCE';
   const canAddDelete = isAdmin || isChef;
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -150,25 +150,18 @@ export default function DriversPage() {
   const [search, setSearch] = useState('');
   const confirm = useConfirm();
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [driversRes, vehiclesRes] = await Promise.all([
-        supabase.from('drivers').select('*, vehicles(immatriculation)').order('name'),
-        supabase.from('vehicles').select('id, immatriculation').order('immatriculation')
-      ]);
-      if (driversRes.error) throw driversRes.error;
-      if (vehiclesRes.error) throw vehiclesRes.error;
-      setDrivers(driversRes.data || []);
-      setVehicles(vehiclesRes.data || []);
-    } catch (err: unknown) {
-      toast.error('Erreur', { description: (err as any)?.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  // Lecture en temps réel depuis Dexie
+  const dexieDrivers = useLiveQuery(() => db.drivers.toArray());
+  const dexieVehicles = useLiveQuery(() => db.vehicles.toArray());
+  
+  const drivers = (dexieDrivers || []).map(d => {
+    // Reconstruire la relation vehicles pour l'affichage
+    const vehicle = dexieVehicles?.find(v => v.id === d.assigned_vehicle_id);
+    return { ...d, vehicles: vehicle ? { immatriculation: vehicle.immatriculation } : undefined };
+  });
+  
+  const vehicles = dexieVehicles || [];
+  const loading = dexieDrivers === undefined || dexieVehicles === undefined;
 
   const handleSave = async (d: typeof emptyForm) => {
     setSaving(true);
@@ -181,11 +174,14 @@ export default function DriversPage() {
         type: d.type,
         assigned_vehicle_id: d.assigned_vehicle_id === 'none' ? null : d.assigned_vehicle_id
       };
-      const { error } = await supabase.from('drivers').insert(payload);
-      if (error) throw error;
+      const clientId = crypto.randomUUID();
+      const newDriver = { ...payload, id: clientId };
+      
+      await db.drivers.put(newDriver);
+      await queueSync('drivers', 'INSERT', newDriver);
+      
       toast.success('Chauffeur ajouté');
       setShowForm(false);
-      fetchData();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -205,11 +201,13 @@ export default function DriversPage() {
         type: d.type,
         assigned_vehicle_id: d.assigned_vehicle_id === 'none' ? null : d.assigned_vehicle_id
       };
-      const { error } = await supabase.from('drivers').update(payload).eq('id', editingDriver.id);
-      if (error) throw error;
+      
+      const updatedDriver = { ...editingDriver, ...payload };
+      await db.drivers.put(updatedDriver);
+      await queueSync('drivers', 'UPDATE', updatedDriver);
+      
       toast.success('Chauffeur mis à jour');
       setEditingDriver(null);
-      fetchData();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
@@ -227,10 +225,10 @@ export default function DriversPage() {
     
     setLoading(true);
     try {
-      const { error } = await supabase.from('drivers').delete().eq('id', id);
-      if (error) throw error;
+      await db.drivers.delete(id);
+      await queueSync('drivers', 'DELETE', { id });
+      
       toast.success('Chauffeur supprimé');
-      fetchData();
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {

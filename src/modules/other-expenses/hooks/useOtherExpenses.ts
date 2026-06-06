@@ -5,31 +5,21 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { toast } from 'sonner';
 import { supabase } from '../../../lib/supabase';
 import { queueSync } from '../../../services/syncService';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 export function useOtherExpenses() {
-  const [expenses, setExpenses] = useState<OtherExpense[]>([]);
-  const [loading, setLoading] = useState(true);
   const user = useAuthStore(s => s.user);
+  
+  const dexieExpenses = useLiveQuery(() => db.otherExpenses.toArray());
+  const expenses = dexieExpenses ? dexieExpenses.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : [];
+  const loading = dexieExpenses === undefined;
 
   useEffect(() => {
-    fetchExpenses();
+    syncFromServer();
   }, [user]);
 
-  const fetchExpenses = async () => {
-    if (!user) return;
-    
-    // 1. Chargement instantané local (Dexie)
-    try {
-      const localData = await db.otherExpenses.toArray();
-      localData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setExpenses(localData as OtherExpense[]);
-    } catch (e) {
-      console.error('Erreur lecture locale other_expenses', e);
-    }
-
-    // 2. Mise à jour en arrière-plan
-    if (navigator.onLine) {
-      setLoading(true);
+  const syncFromServer = async () => {
+    if (!user || !navigator.onLine) return;
       try {
         let query = supabase.from('other_expenses').select('*').order('created_at', { ascending: false }).limit(200);
         
@@ -43,9 +33,7 @@ export function useOtherExpenses() {
         if (error) throw error;
         
         // Sync to local DB and prepare mapped data
-        const mappedData: any[] = [];
         if (data && data.length > 0) {
-          await db.otherExpenses.clear();
           for (const exp of data) {
             const mapped = {
               clientId: exp.id,
@@ -69,18 +57,11 @@ export function useOtherExpenses() {
               rejection_reason: exp.rejection_note || exp.rejection_reason
             };
             await db.otherExpenses.put(mapped).catch(() => {});
-            mappedData.push(mapped);
           }
         }
-        setExpenses(mappedData);
       } catch (error) {
         console.error('Error fetching other expenses background:', error);
-      } finally {
-        setLoading(false);
       }
-    } else {
-      setLoading(false);
-    }
   };
 
   const addExpense = async (expenseData: any) => {
@@ -107,18 +88,12 @@ export function useOtherExpenses() {
     };
 
     try {
-      let insertedId = clientId;
-      if (navigator.onLine) {
-        const { data: inserted, error } = await supabase.from('other_expenses').insert(payloadForServer).select().single();
-        if (error) throw error;
-        insertedId = inserted.id;
-      } else {
-        insertedId = await queueSync('other_expenses', 'INSERT', payloadForServer);
-      }
+      const payloadWithId = { ...payloadForServer, id: clientId };
+      await queueSync('other_expenses', 'INSERT', payloadWithId);
       
       await db.otherExpenses.put({
-        clientId: insertedId,
-        id: insertedId,
+        clientId: clientId,
+        id: clientId,
         date: expenseData.date || todayStr,
         label: expenseData.label,
         motif: expenseData.motif,
@@ -137,7 +112,6 @@ export function useOtherExpenses() {
       });
       
       toast.success('Dépense ajoutée et en attente de validation');
-      fetchExpenses();
     } catch (error: any) {
       console.error('Error adding other expense:', error);
       toast.error("Erreur lors de l'ajout de la dépense: " + error.message);
@@ -156,21 +130,14 @@ export function useOtherExpenses() {
         ...(reason && { rejection_note: reason })
       };
 
-      if (navigator.onLine) {
-        const { error } = await supabase.from('other_expenses').update(payload).eq('id', clientId);
-        if (error) throw error;
-      } else {
-        await queueSync('other_expenses', 'UPDATE', { id: clientId, ...payload });
-      }
+      await queueSync('other_expenses', 'UPDATE', { id: clientId, ...payload });
 
       await db.otherExpenses.where('clientId').equals(clientId).modify({
         status: action as any,
         validated_at: payload.validated_at,
         ...(reason && { rejection_note: reason })
       });
-      
       toast.success(`Dépense ${action === 'VALIDATED' ? 'validée' : 'rejetée'}`);
-      fetchExpenses();
     } catch (error: any) {
       console.error('Error validating other expense:', error);
       toast.error('Erreur lors de la validation: ' + error.message);
@@ -180,19 +147,13 @@ export function useOtherExpenses() {
   const deleteExpense = async (clientId: string) => {
     if (!user) return;
     try {
-      if (navigator.onLine) {
-        const { error } = await supabase.from('other_expenses').delete().eq('id', clientId);
-        if (error) throw error;
-      } else {
-        await queueSync('other_expenses', 'DELETE', { id: clientId });
-      }
+      await queueSync('other_expenses', 'DELETE', { id: clientId });
       
       // Delete from local DB by clientId OR id
       await db.otherExpenses.where('clientId').equals(clientId).delete().catch(() => {});
       await db.otherExpenses.where('id').equals(clientId).delete().catch(() => {});
       
       toast.success('Dépense supprimée avec succès');
-      fetchExpenses();
     } catch (error: any) {
       console.error('Error deleting expense:', error);
       toast.error('Erreur lors de la suppression: ' + (error.message || ''));
@@ -200,11 +161,11 @@ export function useOtherExpenses() {
   };
 
   return {
-    expenses,
+    expenses: expenses as OtherExpense[],
     loading,
     addExpense,
     validateExpense,
     deleteExpense,
-    refresh: fetchExpenses
+    refresh: syncFromServer
   };
 }

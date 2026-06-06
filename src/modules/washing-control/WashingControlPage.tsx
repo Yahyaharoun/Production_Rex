@@ -27,72 +27,43 @@ type WashFormValues = z.infer<typeof washSchema>;
 export default function WashingControlPage() {
   const { user } = useAuthStore();
   const { canManageFuel, canDelete } = useRBAC();
-  const [washes, setWashes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [vehicles, setVehicles] = useState<any[]>([]);
-  const confirm = useConfirm();
+  // Lecture réactive depuis Dexie
+  const dexieWashes = useLiveQuery(() => db.washes.toArray());
+  const washes = dexieWashes ? dexieWashes.sort((a, b) => b.createdAt - a.createdAt) : [];
+  const loading = dexieWashes === undefined;
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<WashFormValues>({
-    resolver: zodResolver(washSchema),
-    defaultValues: { vehicleImmat: '', amount: 1000 }
-  });
-
-  const loadWashes = async () => {
-    // 1. Chargement instantané depuis le cache local
+  const syncFromServer = async () => {
+    if (!navigator.onLine) return;
     try {
-      const localData = await db.washes.toArray();
-      setWashes(localData.sort((a, b) => b.createdAt - a.createdAt));
-    } catch (e) {
-      console.error('Erreur lecture locale washes', e);
-    }
+      let query = supabase.from('washes').select('*').order('created_at', { ascending: false }).limit(200);
 
-    // 2. Mise à jour silencieuse en arrière-plan
-    if (navigator.onLine) {
-      setLoading(true);
-      try {
-        let query = supabase
-          .from('washes')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(200);
-
-        if (user?.role !== 'PDG' && user?.lineIds && user.lineIds.length > 0) {
-          query = query.in('agence_id', user.lineIds);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        
-        if (data) {
-          setWashes(data);
-
-          // Update local cache
-          await db.washes.clear();
-          for (const w of data) {
-            await db.washes.put({
-              clientId: w.id,
-              id: w.id,
-              date: w.date,
-              vehicleImmat: w.vehicle_immat,
-              vehicle_immat: w.vehicle_immat,
-              agenceId: w.agence_id,
-              agence_id: w.agence_id,
-              amount: w.amount,
-              caissiere_name: w.caissiere_name,
-              created_by: w.created_by,
-              syncStatus: 'SYNCED',
-              createdAt: new Date(w.created_at).getTime(),
-            });
-          }
-        }
-      } catch (err: any) {
-        console.error('Erreur background fetch washes:', err);
-      } finally {
-        setLoading(false);
+      if (user?.role !== 'PDG' && user?.lineIds && user.lineIds.length > 0) {
+        query = query.in('agence_id', user.lineIds);
       }
-    } else {
-      setLoading(false);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      if (data) {
+        for (const w of data) {
+          await db.washes.put({
+            clientId: w.id,
+            id: w.id,
+            date: w.date,
+            vehicleImmat: w.vehicle_immat,
+            vehicle_immat: w.vehicle_immat,
+            agenceId: w.agence_id,
+            agence_id: w.agence_id,
+            amount: w.amount,
+            caissiere_name: w.caissiere_name,
+            created_by: w.created_by,
+            syncStatus: 'SYNCED',
+            createdAt: new Date(w.created_at).getTime(),
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error('Erreur background fetch washes:', err);
     }
   };
 
@@ -115,7 +86,7 @@ export default function WashingControlPage() {
   };
 
   useEffect(() => {
-    loadWashes();
+    syncFromServer();
     fetchVehicles();
   }, [user]);
 
@@ -210,48 +181,29 @@ export default function WashingControlPage() {
         date: todayStr,
       };
 
-      if (navigator.onLine) {
-        // 4a. Insertion directe dans Supabase
-        const { data: inserted, error } = await supabase.from('washes').insert(payload).select().single();
-        if (error) throw error;
+      const clientId = crypto.randomUUID();
+      const payloadWithId = { ...payload, id: clientId };
 
-        await db.washes.put({
-          clientId: inserted.id,
-          id: inserted.id,
-          date: todayStr,
-          vehicleImmat: vehicle.immatriculation,
-          vehicle_immat: vehicle.immatriculation,
-          agenceId: user?.agenceId || '',
-          agence_id: user?.agenceId || undefined,
-          amount: data.amount,
-          caissiere_name: user?.name,
-          created_by: user?.id,
-          syncStatus: 'SYNCED',
-          createdAt: Date.now(),
-        });
+      await db.washes.put({
+        clientId,
+        id: clientId,
+        date: todayStr,
+        vehicleImmat: vehicle.immatriculation,
+        vehicle_immat: vehicle.immatriculation,
+        agenceId: user?.agenceId || '',
+        agence_id: user?.agenceId || undefined,
+        amount: data.amount,
+        caissiere_name: user?.name,
+        created_by: user?.id,
+        syncStatus: 'PENDING',
+        createdAt: Date.now(),
+      });
 
-        await logActivity('INSERT', 'washes', `Lavage enregistré pour ${vehicle.immatriculation}: ${data.amount} FCFA`, payload, user?.id, user?.email);
-      } else {
-        // 4b. File d'attente pour synchronisation ultérieure
-        const clientId = await queueSync('washes', 'INSERT', payload);
+      await queueSync('washes', 'INSERT', payloadWithId);
+      await logActivity('INSERT', 'washes', `Lavage enregistré pour ${vehicle.immatriculation}: ${data.amount} FCFA`, payload, user?.id, user?.email);
 
-        await db.washes.put({
-          clientId,
-          date: todayStr,
-          vehicleImmat: vehicle.immatriculation,
-          vehicle_immat: vehicle.immatriculation,
-          agenceId: user?.agenceId || '',
-          amount: data.amount,
-          caissiere_name: user?.name,
-          created_by: user?.id,
-          syncStatus: 'PENDING',
-          createdAt: Date.now(),
-        });
-      }
-
-      toast.success('Lavage enregistré', { description: `${vehicle.immatriculation} — ${data.amount.toLocaleString('fr-FR')} FCFA` });
+      toast.success('Lavage enregistré', { description: `${vehicle.immatriculation} a été marqué comme lavé.` });
       reset();
-      loadWashes();
     } catch (err: any) {
       toast.error(err.message || 'Erreur lors de l\'enregistrement');
     } finally {
@@ -289,25 +241,16 @@ export default function WashingControlPage() {
     
     setDeletingAll(true);
     const idsToDelete = Array.from(selectedIds);
-    if (navigator.onLine && idsToDelete.length > 0) {
-      const { error } = await supabase.from('washes').delete().in('id', idsToDelete);
-      if (error) {
-        toast.error('Erreur', { description: error.message });
-      } else {
-        toast.success(`${idsToDelete.length} lavage(s) supprimé(s)`);
-      }
-    } else {
-      // Offline fallback: delete locally only
-      for (const id of idsToDelete) {
-        const w = washes.find(e => (e.id || e.clientId) === id);
-        if (w) await handleDelete(w.id, w.clientId || w.client_id, true);
-      }
-      toast.success(`${idsToDelete.length} lavage(s) mis en attente de suppression`);
+    
+    // Offline fallback: delete locally and queue
+    for (const id of idsToDelete) {
+      const w = washes.find(e => (e.id || e.clientId) === id);
+      if (w) await handleDelete(w.id, w.clientId || w.client_id, true);
     }
+    toast.success(`${idsToDelete.length} lavage(s) supprimé(s)`);
 
     setDeletingAll(false);
     setSelectedIds(new Set());
-    loadWashes();
   };
 
   const handleDelete = async (id: string, clientId: string, isBulk: boolean = false) => {
@@ -321,19 +264,12 @@ export default function WashingControlPage() {
     }
 
     try {
-      if (navigator.onLine && id) {
-        const { error } = await supabase.from('washes').delete().eq('id', id);
-        if (error) throw error;
-      } else {
-        await queueSync('washes', 'DELETE', { id: id || clientId });
-      }
-
       const idToDelete = id || clientId;
-      await db.washes.where('clientId').equals(idToDelete).delete().catch(() => {});
+      await db.washes.delete(idToDelete);
+      await queueSync('washes', 'DELETE', { id: idToDelete });
 
       if (!isBulk) {
         toast.success('Lavage supprimé');
-        loadWashes();
       }
     } catch (err: any) {
       if (!isBulk) toast.error('Erreur: ' + err.message);
@@ -351,7 +287,7 @@ export default function WashingControlPage() {
           <h1 className="text-2xl font-bold tracking-tight">Contrôle Lavage</h1>
           <p className="text-muted-foreground">Enregistrement des lavages (Max 1 par véhicule par jour)</p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadWashes} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={syncFromServer} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Actualiser
         </Button>
