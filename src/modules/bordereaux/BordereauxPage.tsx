@@ -18,6 +18,7 @@ import { stripSensitiveFields } from '../../lib/utils';
 import { TicketBordereau } from './TicketBordereau';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
+import { queueSync } from '../../services/syncService';
 
 //  Tarifs dynamiques par agence 
 const getPrice = (agenceName: string, type: 'CLASSIQUE' | 'VIP'): number => {
