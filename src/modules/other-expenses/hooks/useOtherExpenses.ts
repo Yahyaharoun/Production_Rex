@@ -17,10 +17,20 @@ export function useOtherExpenses() {
 
   const fetchExpenses = async () => {
     if (!user) return;
-    setLoading(true);
+    
+    // 1. Chargement instantané local (Dexie)
     try {
-      if (navigator.onLine) {
-        // Fetch from Supabase for fresh data
+      const localData = await db.otherExpenses.toArray();
+      localData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setExpenses(localData as OtherExpense[]);
+    } catch (e) {
+      console.error('Erreur lecture locale other_expenses', e);
+    }
+
+    // 2. Mise à jour en arrière-plan
+    if (navigator.onLine) {
+      setLoading(true);
+      try {
         let query = supabase.from('other_expenses').select('*').order('created_at', { ascending: false }).limit(200);
         
         if (user.role === 'CAISSIERE' || user.role === 'AGENT_RECETTE') {
@@ -35,6 +45,7 @@ export function useOtherExpenses() {
         // Sync to local DB and prepare mapped data
         const mappedData: any[] = [];
         if (data && data.length > 0) {
+          await db.otherExpenses.clear();
           for (const exp of data) {
             const mapped = {
               clientId: exp.id,
@@ -62,20 +73,12 @@ export function useOtherExpenses() {
           }
         }
         setExpenses(mappedData);
-      } else {
-        const localData = await db.otherExpenses.toArray();
-        localData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setExpenses(localData as OtherExpense[]);
+      } catch (error) {
+        console.error('Error fetching other expenses background:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching other expenses:', error);
-      // Fallback to local
-      try {
-        const localData = await db.otherExpenses.toArray();
-        setExpenses(localData as OtherExpense[]);
-      } catch (_) {}
-      toast.error('Erreur lors du chargement des autres dépenses');
-    } finally {
+    } else {
       setLoading(false);
     }
   };

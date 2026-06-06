@@ -172,45 +172,60 @@ export default function BordereauxPage() {
     }
   };
 
-  //  Chargement de l'historique 
+  // Chargement de l'historique avec pattern SWR (Stale-While-Revalidate)
   const fetchHistory = async () => {
-    setLoadingHistory(true);
+    // 1. Affichage immédiat depuis le cache local (Dexie)
     try {
-      let dataToUse: any[] = [];
-      if (navigator.onLine) {
+      const allProds = await db.productions.toArray();
+      let localData = allProds;
+      if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
+        localData = allProds.filter(p => user.lineIds.includes(p.agence_id || p.agenceId));
+      }
+      localData.sort((a, b) => b.created_at?.localeCompare(a.created_at));
+      
+      const dataWithType = localData.map((r: any) => ({
+        ...r,
+        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
+      }));
+      setHistory(dataWithType);
+    } catch(e) {
+      console.error('Erreur lecture locale', e);
+    }
+
+    // 2. Si en ligne, mise à jour silencieuse en arrière-plan
+    if (navigator.onLine) {
+      setLoadingHistory(true);
+      try {
         let query = supabase
           .from('productions')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(100);
+          .limit(200);
 
-        // Filtrer par agence pour les non-admins
         if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
           query = query.in('agence_id', user.lineIds);
         }
 
         const { data, error } = await query;
         if (error) throw error;
-        dataToUse = data || [];
-      } else {
-        const allProds = await db.productions.toArray();
-        if (!isAdmin && user?.lineIds && user.lineIds.length > 0) {
-          dataToUse = allProds.filter(p => user.lineIds.includes(p.agence_id || p.agenceId));
-        } else {
-          dataToUse = allProds;
+        
+        if (data) {
+          // Mise à jour du cache local
+          await db.productions.clear();
+          await db.productions.bulkPut(data.map(p => ({...p, clientId: p.id})));
+          
+          // Mise à jour de l'UI
+          const dataWithType = data.map((r: any) => ({
+            ...r,
+            production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
+          }));
+          setHistory(dataWithType);
         }
-        dataToUse.sort((a, b) => b.created_at?.localeCompare(a.created_at));
+      } catch (err: unknown) {
+        console.error('Erreur background fetch:', err);
+      } finally {
+        setLoadingHistory(false);
       }
-      
-      const dataWithType = dataToUse.map((r: any) => ({
-        ...r,
-        production_type: r.immatriculation?.includes('(VIP)') ? 'VIP' : 'CLASSIQUE'
-      }));
-      setHistory(dataWithType);
-    } catch (err: unknown) {
-      toast.error('Erreur de chargement de l\'historique', { description: (err as any)?.message });
-    } finally {
-      setLoadingHistory(false);
     }
   };
 

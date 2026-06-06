@@ -41,22 +41,53 @@ export default function FuelExpensePage() {
     defaultValues: { amount: 0, category: 'CLASSIQUE', vehicleImmat: '', lineName: '', notes: '' }
   });
 
+  // Chargement avec SWR (Stale-While-Revalidate)
   const loadExpenses = async () => {
-    setLoading(true);
+    // 1. Chargement instantané depuis le cache local (Dexie)
     try {
-      if (navigator.onLine) {
+      const localFuel = await db.fuelExpenses.toArray();
+      const localProd = await db.productions.filter(p => (p.expense_fuel || 0) > 0).toArray();
+      const mappedLocalProds = localProd.map(p => ({
+        id: 'prod_' + (p.id || p.clientId),
+        clientId: p.clientId,
+        date: p.date,
+        vehicle_immat: p.immatriculation,
+        vehicleImmat: p.immatriculation,
+        line_name: p.ligne,
+        agence_id: p.agence_id,
+        category: p.production_type || 'CLASSIQUE',
+        amount: p.expense_fuel,
+        notes: 'Lié à une production',
+        caissiere_name: p.caissiere_name,
+        created_by: p.created_by,
+        created_at: p.created_at || new Date().toISOString(),
+        createdAt: new Date(p.created_at || Date.now()).getTime(),
+        isFromProduction: true,
+        originalId: p.id || p.clientId
+      }));
+      
+      const mergedLocal = [...localFuel, ...mappedLocalProds].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setExpenses(mergedLocal);
+    } catch (e) {
+      console.error('Erreur lecture locale', e);
+    }
+
+    // 2. Mise à jour silencieuse en arrière-plan
+    if (navigator.onLine) {
+      setLoading(true);
+      try {
         let query = supabase
           .from('fuel_expenses')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(100);
+          .limit(200);
 
         let prodQuery = supabase
           .from('productions')
           .select('id, date, immatriculation, ligne, agence_id, production_type, expense_fuel, caissiere_name, created_at, created_by')
           .gt('expense_fuel', 0)
           .order('created_at', { ascending: false })
-          .limit(100);
+          .limit(200);
 
         if (user?.role !== 'PDG' && user?.lineIds && user.lineIds.length > 0) {
           query = query.in('agence_id', user.lineIds);
@@ -67,6 +98,30 @@ export default function FuelExpensePage() {
         if (fuelRes.error) throw fuelRes.error;
         if (prodRes.error) throw prodRes.error;
 
+        // Mise à jour du cache local
+        if (fuelRes.data && fuelRes.data.length > 0) {
+          await db.fuelExpenses.clear();
+          for (const exp of fuelRes.data) {
+            await db.fuelExpenses.put({
+              clientId: exp.id,
+              id: exp.id,
+              date: exp.date,
+              vehicleImmat: exp.vehicle_immat,
+              vehicle_immat: exp.vehicle_immat,
+              lineName: exp.line_name,
+              agenceId: exp.agence_id,
+              category: exp.category,
+              amount: exp.amount,
+              notes: exp.notes,
+              caissiere_name: exp.caissiere_name,
+              created_by: exp.created_by,
+              syncStatus: 'SYNCED',
+              createdAt: new Date(exp.created_at).getTime(),
+            });
+          }
+        }
+
+        // Mise à jour de l'UI
         const mappedProds = (prodRes.data || []).map((p: any) => ({
           id: 'prod_' + p.id,
           date: p.date,
@@ -88,73 +143,12 @@ export default function FuelExpensePage() {
         );
 
         setExpenses(merged);
-
-        // Update local cache ONLY for fuel_expenses
-        if (fuelRes.data && fuelRes.data.length > 0) {
-          for (const exp of fuelRes.data) {
-            await db.fuelExpenses.put({
-              clientId: exp.id,
-              id: exp.id,
-              date: exp.date,
-              vehicleImmat: exp.vehicle_immat,
-              vehicle_immat: exp.vehicle_immat,
-              lineName: exp.line_name,
-              agenceId: exp.agence_id,
-              category: exp.category,
-              amount: exp.amount,
-              notes: exp.notes,
-              caissiere_name: exp.caissiere_name,
-              created_by: exp.created_by,
-              syncStatus: 'SYNCED',
-              createdAt: new Date(exp.created_at).getTime(),
-            });
-          }
-        }
-      } else {
-        const localFuel = await db.fuelExpenses.toArray();
-        const localProd = await db.productions.filter(p => (p.expense_fuel || 0) > 0).toArray();
-        const mappedLocalProds = localProd.map(p => ({
-          id: 'prod_' + (p.id || p.clientId),
-          clientId: p.clientId,
-          date: p.date,
-          vehicle_immat: p.immatriculation,
-          vehicleImmat: p.immatriculation,
-          line_name: p.ligne,
-          agence_id: p.agence_id,
-          category: p.production_type || 'CLASSIQUE',
-          amount: p.expense_fuel,
-          notes: 'Lié à une production',
-          caissiere_name: p.caissiere_name,
-          created_by: p.created_by,
-          created_at: p.created_at || new Date().toISOString(),
-          createdAt: new Date(p.created_at || Date.now()).getTime(),
-          isFromProduction: true,
-          originalId: p.id || p.clientId
-        }));
-        
-        const mergedLocal = [...localFuel, ...mappedLocalProds].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setExpenses(mergedLocal);
+      } catch (err: any) {
+        console.error('Erreur background fetch:', err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      toast.error('Erreur chargement carburant: ' + err.message);
-      // Fallback to local data
-      try {
-        const localFuel = await db.fuelExpenses.toArray();
-        const localProd = await db.productions.filter(p => (p.expense_fuel || 0) > 0).toArray();
-        const mappedLocalProds = localProd.map(p => ({
-          id: 'prod_' + (p.id || p.clientId),
-          clientId: p.clientId,
-          date: p.date,
-          vehicle_immat: p.immatriculation,
-          line_name: p.ligne,
-          amount: p.expense_fuel,
-          createdAt: new Date(p.created_at || Date.now()).getTime(),
-          isFromProduction: true
-        }));
-        const mergedLocal = [...localFuel, ...mappedLocalProds].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setExpenses(mergedLocal);
-      } catch (_) {}
-    } finally {
+    } else {
       setLoading(false);
     }
   };

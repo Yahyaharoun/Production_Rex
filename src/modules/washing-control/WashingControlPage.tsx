@@ -39,14 +39,23 @@ export default function WashingControlPage() {
   });
 
   const loadWashes = async () => {
-    setLoading(true);
+    // 1. Chargement instantané depuis le cache local
     try {
-      if (navigator.onLine) {
+      const localData = await db.washes.toArray();
+      setWashes(localData.sort((a, b) => b.createdAt - a.createdAt));
+    } catch (e) {
+      console.error('Erreur lecture locale washes', e);
+    }
+
+    // 2. Mise à jour silencieuse en arrière-plan
+    if (navigator.onLine) {
+      setLoading(true);
+      try {
         let query = supabase
           .from('washes')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(100);
+          .limit(200);
 
         if (user?.role !== 'PDG' && user?.lineIds && user.lineIds.length > 0) {
           query = query.in('agence_id', user.lineIds);
@@ -54,10 +63,12 @@ export default function WashingControlPage() {
 
         const { data, error } = await query;
         if (error) throw error;
-        setWashes(data || []);
+        
+        if (data) {
+          setWashes(data);
 
-        // Update local cache
-        if (data && data.length > 0) {
+          // Update local cache
+          await db.washes.clear();
           for (const w of data) {
             await db.washes.put({
               clientId: w.id,
@@ -75,17 +86,12 @@ export default function WashingControlPage() {
             });
           }
         }
-      } else {
-        const localData = await db.washes.toArray();
-        setWashes(localData.sort((a, b) => b.createdAt - a.createdAt));
+      } catch (err: any) {
+        console.error('Erreur background fetch washes:', err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      toast.error('Erreur chargement lavages: ' + err.message);
-      try {
-        const localData = await db.washes.toArray();
-        setWashes(localData.sort((a, b) => b.createdAt - a.createdAt));
-      } catch (_) {}
-    } finally {
+    } else {
       setLoading(false);
     }
   };
