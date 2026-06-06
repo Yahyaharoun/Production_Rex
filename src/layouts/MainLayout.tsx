@@ -65,6 +65,7 @@ const OnlineStatus = () => {
 export const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
   const { isInstallable, isInstalled, install } = usePWAInstall();
   const { user, login, logout } = useAuthStore();
   const navigate = useNavigate();
