@@ -36,7 +36,7 @@ const emptyForm = {
   brand: '',
   model: '',
   total_seats: 30,
-  status: 'ACTIF' as VehicleStatus,
+  status: 'ACTIVE' as VehicleStatus,
   notes: '',
   default_driver_name: '',
   production_type: 'CLASSIQUE' as 'VIP' | 'CLASSIQUE',
@@ -114,7 +114,7 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
             <Label className="text-foreground text-sm font-bold uppercase tracking-widest text-[10px]">Statut</Label>
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as VehicleStatus })}
               className="w-full rounded-xl bg-secondary/20 border border-border text-foreground h-11 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm font-bold">
-              <option value="ACTIF">Actif</option>
+              <option value="ACTIVE">Actif</option>
               <option value="MAINTENANCE">En maintenance</option>
               <option value="GARAGE">Au garage</option>
             </select>
