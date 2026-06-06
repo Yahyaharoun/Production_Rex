@@ -208,6 +208,29 @@ export default function VehiclesPage() {
     
     setLoading(true);
     try {
+      const vehicle = vehicles.find(v => v.id === id);
+      if (vehicle) {
+        const norm = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
+        const vImmat = norm(vehicle.immatriculation);
+
+        const prods = await db.productions.toArray();
+        const hasProds = prods.some(p => norm(p.vehicle_immat) === vImmat);
+        
+        const washes = await db.washes.toArray();
+        const hasWashes = washes.some(w => norm(w.vehicle_immat || w.vehicleImmat) === vImmat);
+        
+        const fuels = await db.fuelExpenses.toArray();
+        const hasFuels = fuels.some(f => norm(f.vehicle_immat) === vImmat);
+
+        if (hasProds || hasWashes || hasFuels) {
+          toast.error('Suppression impossible', {
+            description: "Ce véhicule possède déjà un historique (productions, lavages ou carburant). Changez plutôt son statut à 'En maintenance' ou 'Au garage'."
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       // 1. Suppression locale
       await db.vehicles.delete(id);
       // 2. File d'attente
