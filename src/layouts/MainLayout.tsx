@@ -86,9 +86,9 @@ export const MainLayout = () => {
       const ok = await install();
       if (ok) setShowInstallBanner(false);
     } else if (isIOS) {
-      alert('Sur iPhone/iPad :\n1. Ouvrez Safari\n2. Appuyez sur Partager \uD83D\uDCE4\n3. "Sur l\'écran d\'accueil"');
+      alert('Sur iPhone/iPad :\n1. Ouvrez Safari\n2. Appuyez sur Partager (icône carré avec flèche en bas)\n3. Choisissez "Sur l\'écran d\'accueil"');
     } else {
-      alert('Pour installer :\nChrome/Edge : icône ⊕ dans la barre d\'adresse → "Installer"');
+      alert('Pour installer sur PC (Chrome/Edge) :\n\nRegardez tout en haut de votre écran, dans la barre d\'adresse (où il y a le lien du site).\n\nCliquez sur l\'icône ⊕ ou l\'icône d\'ordinateur avec une flèche, puis cliquez sur "Installer".\n\n(Firefox ne supporte pas l\'installation PWA sur PC)');
     }
   };
 

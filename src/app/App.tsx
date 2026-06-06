@@ -2,7 +2,6 @@ import { Suspense, Component, ReactNode, ErrorInfo } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { AppProvider } from '../providers/AppProvider';
 import { ConfirmProvider } from '../providers/ConfirmProvider';
-import InstallPrompt from '../components/pwa/InstallPrompt';
 import { router } from '../routes';
 
 // ── Error Boundary global : évite la page blanche totale ──────────────────
@@ -111,7 +110,6 @@ function App() {
           }>
             <RouterProvider router={router} />
           </Suspense>
-          <InstallPrompt />
         </ConfirmProvider>
       </AppProvider>
     </ErrorBoundary>

@@ -38,12 +38,22 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   const handleInstall = async () => {
-    const ok = await install();
-    if (ok) {
-      toast.success('Application installée !', {
-        description: 'Vous pouvez maintenant utiliser Production Rex hors connexion depuis votre bureau.',
-        duration: 5000,
-      });
+    if (isInstallable) {
+      const ok = await install();
+      if (ok) {
+        toast.success('Application installée !', {
+          description: 'Vous pouvez maintenant utiliser Production Rex hors connexion depuis votre bureau.',
+          duration: 5000,
+        });
+      }
+    } else {
+      // Guide manuel
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      if (isIOS) {
+        alert('Sur iPhone/iPad :\n1. Ouvrez Safari\n2. Appuyez sur Partager (icône carré avec flèche)\n3. Choisissez "Sur l\'écran d\'accueil"');
+      } else {
+        alert('Pour installer sur PC (Chrome/Edge) :\n\nRegardez tout en haut de votre écran, dans la barre d\'adresse (où il y a le lien du site).\n\nCliquez sur l\'icône ⊕ ou l\'icône d\'ordinateur avec une flèche, puis cliquez sur "Installer".\n\n(Firefox ne supporte pas l\'installation PWA sur PC)');
+      }
     }
   };
 
@@ -244,7 +254,7 @@ export default function LoginPage() {
         <div className="text-center pt-4 border-t border-border/50 space-y-3">
 
           {/* Bouton d'installation PWA - visible SANS connexion */}
-          {!isInstalled && isInstallable && (
+          {!isInstalled && (
             <button
               type="button"
               onClick={handleInstall}
