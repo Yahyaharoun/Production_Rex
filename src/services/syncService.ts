@@ -37,6 +37,12 @@ export const syncAllPending = async () => {
       }
 
       if (item.operation === 'INSERT' || item.operation === 'UPDATE') {
+        if (item.table === 'vehicles' && payloadForServer.status === 'ACTIF') {
+          // Drop silently: ACTIF is not allowed by DB constraint
+          await db.syncQueue.update(item.id!, { status: 'SUCCESS' });
+          continue;
+        }
+
         const { error } = await supabase
           .from(item.table)
           .upsert(payloadForServer, { onConflict: 'id' });
