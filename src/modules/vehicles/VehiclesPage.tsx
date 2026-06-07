@@ -62,9 +62,9 @@ function VehicleForm({ mode, initial, onSave, onCancel, saving }: {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.immatriculation.trim()) e.immatriculation = 'Immatriculation requise';
-    if (!form.brand.trim()) e.brand = 'Marque requise';
-    if (!form.model.trim()) e.model = 'Modèle requis';
+    if (!(form.immatriculation || '').trim()) e.immatriculation = 'Immatriculation requise';
+    if (!(form.brand || '').trim()) e.brand = 'Marque requise';
+    if (!(form.model || '').trim()) e.model = 'Modèle requis';
     if (form.total_seats < 1) e.total_seats = 'Capacité invalide';
     setFormErrors(e);
     return Object.keys(e).length === 0;
@@ -223,7 +223,7 @@ export default function VehiclesPage() {
     });
     if (!isConfirmed) return;
     
-    setLoading(true);
+    setSaving(true);
     try {
       // Removed artificial history check to allow vehicle deletion as requested by user
 
@@ -235,7 +235,7 @@ export default function VehiclesPage() {
     } catch (err: unknown) {
       toast.error('Erreur', { description: (err as any)?.message });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
