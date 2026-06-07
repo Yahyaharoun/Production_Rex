@@ -2,7 +2,7 @@ import { db, SyncQueueItem } from '../lib/dexie';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
-const LOCAL_ONLY_FIELDS = ['clientId', 'client_id', 'synced', 'syncStatus', 'createdAt', 'agenceId', 'vehicleImmat', 'lineName', 'vehicle_id', 'ligne'];
+const LOCAL_ONLY_FIELDS = ['clientId', 'client_id', 'synced', 'syncStatus', 'createdAt', 'agenceId', 'vehicleImmat', 'lineName', 'vehicle_id', 'ligne', 'totalSeats'];
 
 function sanitizeForServer(payload: Record<string, any>): Record<string, any> {
   const clean = { ...payload };
