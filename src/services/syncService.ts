@@ -50,14 +50,25 @@ export const syncAllPending = async () => {
         const { error } = await supabase
           .from(item.table)
           .upsert(payloadForServer, { onConflict: 'id' });
-        if (error) throw error;
+        
+        if (error) {
+          if (error.message?.includes('vehicles_immatriculation_key')) {
+            console.warn('[SyncService] Duplicate immatriculation detected, dropping local duplicate.', item.payload);
+            await db.syncQueue.update(item.id!, { status: 'SUCCESS' });
+            if (item.table === 'vehicles' && payloadForServer.id) {
+              await db.vehicles.delete(payloadForServer.id);
+            }
+            continue;
+          }
+          throw new Error(`DB Error: ${error.message} ${error.details || ''} ${error.hint || ''}`);
+        }
       } else if (item.operation === 'DELETE') {
         const deleteId = item.payload.id || item.clientId;
         const { error } = await supabase
           .from(item.table)
           .delete()
           .eq('id', deleteId);
-        if (error) throw error;
+        if (error) throw new Error(`DB Delete Error: ${error.message} ${error.details || ''} ${error.hint || ''}`);
       }
 
       await db.syncQueue.update(item.id!, { status: 'SUCCESS', syncedAt: Date.now() });

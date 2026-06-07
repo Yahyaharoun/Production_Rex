@@ -165,6 +165,14 @@ export default function VehiclesPage() {
   const handleAdd = async (v: any) => {
     setSaving(true);
     try {
+      const norm = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
+      const existing = vehicles.find(veh => norm(veh.immatriculation) === norm(v.immatriculation));
+      if (existing) {
+        toast.error('Erreur', { description: 'Cette immatriculation existe déjà.' });
+        setSaving(false);
+        return;
+      }
+
       const clientId = crypto.randomUUID();
       const newVehicle = { ...v, id: clientId };
       // 1. Sauvegarde locale
@@ -184,6 +192,14 @@ export default function VehiclesPage() {
     if (!editingVehicle) return;
     setSaving(true);
     try {
+      const norm = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
+      const existing = vehicles.find(veh => norm(veh.immatriculation) === norm(v.immatriculation) && veh.id !== editingVehicle.id);
+      if (existing) {
+        toast.error('Erreur', { description: 'Cette immatriculation existe déjà sur un autre véhicule.' });
+        setSaving(false);
+        return;
+      }
+
       const updatedVehicle = { ...editingVehicle, ...v };
       // 1. Mise à jour locale
       await db.vehicles.put(updatedVehicle);
@@ -208,28 +224,7 @@ export default function VehiclesPage() {
     
     setLoading(true);
     try {
-      const vehicle = vehicles.find(v => v.id === id);
-      if (vehicle) {
-        const norm = (s: string) => (s || '').replace(/[\s\-_]/g, '').toUpperCase();
-        const vImmat = norm(vehicle.immatriculation);
-
-        const prods = await db.productions.toArray();
-        const hasProds = prods.some(p => norm(p.vehicle_immat) === vImmat);
-        
-        const washes = await db.washes.toArray();
-        const hasWashes = washes.some(w => norm(w.vehicle_immat || w.vehicleImmat) === vImmat);
-        
-        const fuels = await db.fuelExpenses.toArray();
-        const hasFuels = fuels.some(f => norm(f.vehicle_immat) === vImmat);
-
-        if (hasProds || hasWashes || hasFuels) {
-          toast.error('Suppression impossible', {
-            description: "Ce véhicule possède déjà un historique (productions, lavages ou carburant). Changez plutôt son statut à 'En maintenance' ou 'Au garage'."
-          });
-          setLoading(false);
-          return;
-        }
-      }
+      // Removed artificial history check to allow vehicle deletion as requested by user
 
       // 1. Suppression locale
       await db.vehicles.delete(id);
