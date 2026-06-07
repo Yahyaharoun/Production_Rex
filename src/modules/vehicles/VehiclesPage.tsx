@@ -36,6 +36,7 @@ const emptyForm = {
   brand: '',
   model: '',
   total_seats: 30,
+  totalSeats: 30,
   status: 'ACTIVE' as VehicleStatus,
   notes: '',
   default_driver_name: '',
@@ -276,7 +277,7 @@ export default function VehiclesPage() {
             immatriculation: editingVehicle.immatriculation,
             brand: editingVehicle.brand,
             model: editingVehicle.model,
-            total_seats: editingVehicle.total_seats,
+            total_seats: editingVehicle.total_seats || (editingVehicle as any).totalSeats || 30,
             status: editingVehicle.status,
             notes: editingVehicle.notes || '',
             default_driver_name: editingVehicle.default_driver_name || '',
@@ -333,15 +334,15 @@ export default function VehiclesPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground font-bold">Capacité :</span>
-                    <span className="font-black text-foreground">{v.total_seats} places</span>
+                    <span className="font-black text-foreground">{v.total_seats || (v as any).totalSeats || 0} places</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground font-bold text-sm">État :</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm",
-                      v.status === 'ACTIVE' ? "bg-primary/10 text-primary border border-primary/20" : "bg-destructive/10 text-destructive border border-destructive/20"
+                      v.status === 'ACTIVE' || v.status === 'ACTIF' ? "bg-primary/10 text-primary border border-primary/20" : "bg-destructive/10 text-destructive border border-destructive/20"
                     )}>
-                      {v.status === 'ACTIVE' ? 'En service' : 'Maintenance'}
+                      {v.status === 'ACTIVE' || v.status === 'ACTIF' ? 'En service' : 'Maintenance'}
                     </span>
                   </div>
                   {isAdminOrChef && (
