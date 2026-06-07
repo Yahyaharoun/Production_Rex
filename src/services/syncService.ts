@@ -47,9 +47,10 @@ export const syncAllPending = async () => {
           continue;
         }
 
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from(item.table)
-          .upsert(payloadForServer, { onConflict: 'id' });
+          .upsert(payloadForServer, { onConflict: 'id' })
+          .select();
         
         if (error) {
           if (error.message?.includes('vehicles_immatriculation_key')) {
@@ -62,13 +63,22 @@ export const syncAllPending = async () => {
           }
           throw new Error(`DB Error: ${error.message} ${error.details || ''} ${error.hint || ''}`);
         }
+        
+        if (!data || data.length === 0) {
+          throw new Error(`Permission refusée (RLS silencieux) pour enregistrer sur ${item.table}. Vérifiez vos droits.`);
+        }
       } else if (item.operation === 'DELETE') {
         const deleteId = item.payload.id || item.clientId;
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from(item.table)
           .delete()
-          .eq('id', deleteId);
+          .eq('id', deleteId)
+          .select();
         if (error) throw new Error(`DB Delete Error: ${error.message} ${error.details || ''} ${error.hint || ''}`);
+        
+        if (!data || data.length === 0) {
+          throw new Error(`Permission refusée (RLS silencieux) ou élément déjà supprimé sur ${item.table}.`);
+        }
       }
 
       await db.syncQueue.update(item.id!, { status: 'SUCCESS', syncedAt: Date.now() });

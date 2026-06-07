@@ -48,3 +48,5 @@ clean.cjs
 Yahya-dev.github.io/
 node-v*/
 node.zip
+
+.env*
