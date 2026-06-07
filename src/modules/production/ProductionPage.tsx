@@ -453,7 +453,7 @@ export default function ProductionPage() {
       }
 
       setSaved(true);
-      await fetchHistory();
+      await syncHistoryFromServer();
       setTimeout(() => setSaved(false), 3000);
 
       // Le ticket n'est plus affiché pour l'Agent de Production (Caissière)
@@ -494,7 +494,7 @@ export default function ProductionPage() {
       const { error } = await supabase.from('productions').delete().eq('id', id);
       if (!error) {
         toast.success('Production supprimée');
-        fetchHistory();
+        syncHistoryFromServer();
       } else {
         toast.error('Erreur de suppression', { description: error.message });
       }
@@ -517,7 +517,7 @@ export default function ProductionPage() {
       if (!error) {
         toast.success('Production validée !');
         setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-        fetchHistory();
+        syncHistoryFromServer();
       } else {
         toast.error('Erreur de validation', { description: error.message });
       }
@@ -569,6 +569,7 @@ export default function ProductionPage() {
     setValidatingAll(false);
     toast.success(`${idsToValidate.length} production(s) validée(s) !`);
     setSelectedIds(new Set());
+    syncHistoryFromServer();
   };
 
   const handleDeleteSelected = async () => {
@@ -592,6 +593,7 @@ export default function ProductionPage() {
     setDeletingAll(false);
     toast.success(`${idsToDelete.length} production(s) supprimée(s) !`);
     setSelectedIds(new Set());
+    syncHistoryFromServer();
   };
 
   const handlePrintDone = async (tripNumber: string) => {
@@ -621,6 +623,7 @@ export default function ProductionPage() {
       await queueSync('productions', 'UPDATE', { id, arrival_time: new Date().toISOString() });
       
       toast.success('Arrivée validée avec succès !');
+      syncHistoryFromServer();
     } catch (err: any) {
       toast.error("Erreur", { description: err.message });
     }
@@ -1055,7 +1058,7 @@ export default function ProductionPage() {
                     )}
                   </>
                 )}
-                <Button variant="ghost" size="sm" onClick={fetchHistory} disabled={loadingHistory}>
+                <Button variant="ghost" size="sm" onClick={syncHistoryFromServer} disabled={loadingHistory}>
                   <RefreshCw className={`h-4 w-4 ${loadingHistory ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
